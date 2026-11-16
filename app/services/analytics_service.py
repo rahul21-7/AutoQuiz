@@ -34,11 +34,15 @@ class AnalyticsService:
                 "welcome_state": True,
                 "message": "Welcome to AutoQuiz! You haven't taken any quiz loops yet. Upload study materials or start your first practice session to generate your personalized weakness heatmap.",
                 "readiness_percentage": 0.0,
+                "first_try_mastery_percentage": 0.0,
+                "looped_mastery_percentage": 0.0,
                 "first_try_success_rate": 0.0,
                 "looped_mastery_rate": 0.0,
                 "weak_concepts": [],
                 "heatmap_data": [],
+                "heatmap_tiles": [],
                 "retry_history": [],
+                "decay_alerts": [],
                 "render_time_ms": round((time.time() - start_time) * 1000, 2)
             }
 
@@ -159,6 +163,8 @@ class AnalyticsService:
             "readiness_percentage": readiness_percentage,
             "total_topics": total_topics,
             "mastered_topics": mastered_topics,
+            "first_try_mastery_percentage": first_try_rate,
+            "looped_mastery_percentage": looped_rate,
             "first_attempt_metrics": {
                 "total": breakdown["first_try_total"] or 0,
                 "passed": breakdown["first_try_passed"] or 0,
@@ -175,6 +181,7 @@ class AnalyticsService:
             },
             "weak_concepts": weak_concepts,
             "heatmap_data": heatmap_data,
+            "heatmap_tiles": heatmap_data,
             "retry_history": history,
             "decay_alerts": decay_alerts,
             "render_time_ms": render_ms

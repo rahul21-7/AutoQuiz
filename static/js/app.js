@@ -907,7 +907,21 @@ async function loadDashboardAnalytics() {
       }
     } catch (_) {}
 
+    const heatmapList = data.heatmap_tiles || data.heatmap_data || [];
+    const firstTryVal = data.first_try_mastery_percentage !== undefined ? data.first_try_mastery_percentage : (data.first_attempt_metrics ? data.first_attempt_metrics.success_rate_percent : 0);
+    const loopedVal = data.looped_mastery_percentage !== undefined ? data.looped_mastery_percentage : (data.looped_mastery_metrics ? data.looped_mastery_metrics.success_rate_percent : 0);
+    const decayList = data.decay_alerts || [];
+    const sessionList = Array.isArray(sessions) ? sessions : [];
+
+    const decayAlertHtml = decayList.length > 0 ? `
+      <div class="eval-banner warning" style="margin-bottom:1.25rem;">
+        <div style="font-weight:700; font-size:0.95rem; margin-bottom:0.25rem;">Retention Review Due (Ebbinghaus Decay Alert)</div>
+        <p style="font-size:0.85rem; line-height:1.4;">The following topics have crossed their stability interval without practice: <strong>${decayList.map(d => escapeHtml(d.name)).join(", ")}</strong>. Run a review loop to maintain your mastery status.</p>
+      </div>
+    ` : "";
+
     container.innerHTML = `
+      ${decayAlertHtml}
       <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:1rem; margin-bottom:1.5rem;">
         <div class="panel-card">
           <div style="font-size:0.8rem; color:var(--text-dim);">OVERALL READINESS</div>
@@ -916,8 +930,8 @@ async function loadDashboardAnalytics() {
         </div>
         <div class="panel-card">
           <div style="font-size:0.8rem; color:var(--text-dim);">FIRST-ATTEMPT SUCCESS (BR-4)</div>
-          <div style="font-size:2rem; font-weight:600; color:var(--text-main); margin:0.25rem 0;">${data.first_try_mastery_percentage}%</div>
-          <div style="font-size:0.8rem; color:var(--text-muted);">Looped Mastery: ${data.looped_mastery_percentage}%</div>
+          <div style="font-size:2rem; font-weight:600; color:var(--text-main); margin:0.25rem 0;">${firstTryVal}%</div>
+          <div style="font-size:0.8rem; color:var(--text-muted);">Looped Mastery: ${loopedVal}%</div>
         </div>
         <div class="panel-card">
           <div style="font-size:0.8rem; color:var(--text-dim);">AUDIT LATENCY (PERF-3)</div>
@@ -928,16 +942,18 @@ async function loadDashboardAnalytics() {
 
       <div class="panel-card">
         <h3 style="font-size:1rem; font-weight:600; margin-bottom:1rem; color:#ffffff;">Weakness Heatmap & Mastery Breakdown</h3>
-        <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(200px, 1fr)); gap:0.75rem;">
-          ${data.heatmap_tiles.map(tile => `
-            <div style="background:#18191a; padding:1rem; border-left:3px solid ${tile.color_hex};">
-              <div style="font-weight:600; font-size:0.92rem; margin-bottom:0.25rem; color:#ffffff;">${escapeHtml(tile.topic_name)}</div>
-              <div style="font-size:0.78rem; color:${tile.color_hex}; font-weight:600; margin-bottom:0.4rem;">${tile.weakness_level}</div>
-              <div style="font-size:0.78rem; color:var(--text-dim);">Avg Score: ${tile.average_score}%</div>
-              <div style="font-size:0.78rem; color:var(--text-dim);">Failures: ${tile.failure_count} | Unverified: ${tile.unverified_guesses}</div>
-            </div>
-          `).join("")}
-        </div>
+        ${heatmapList.length === 0 ? `<div style="color:var(--text-dim); font-size:0.85rem;">No topic metrics recorded yet. Complete your first practice loop to generate heatmap metrics.</div>` : `
+          <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(200px, 1fr)); gap:0.75rem;">
+            ${heatmapList.map(tile => `
+              <div style="background:#18191a; padding:1rem; border-left:3px solid ${tile.color_hex};">
+                <div style="font-weight:600; font-size:0.92rem; margin-bottom:0.25rem; color:#ffffff;">${escapeHtml(tile.topic_name)}</div>
+                <div style="font-size:0.78rem; color:${tile.color_hex}; font-weight:600; margin-bottom:0.4rem;">${tile.weakness_level}</div>
+                <div style="font-size:0.78rem; color:var(--text-dim);">Avg Score: ${tile.average_score}%</div>
+                <div style="font-size:0.78rem; color:var(--text-dim);">Failures: ${tile.failure_count} | Unverified: ${tile.unverified_guesses}</div>
+              </div>
+            `).join("")}
+          </div>
+        `}
       </div>
 
       <div class="panel-card" style="margin-top:1.25rem;">
@@ -945,7 +961,7 @@ async function loadDashboardAnalytics() {
           <h3 style="font-size:1rem; font-weight:600; color:#ffffff;">Practice Session History & Saved Chats</h3>
           <button class="btn-new-chat" style="margin:0; padding:0.35rem 0.75rem;" onclick="startNewChat()">+ New Quiz Loop</button>
         </div>
-        ${sessions.length === 0 ? `<div style="color:var(--text-dim); font-size:0.85rem; padding:0.5rem 0;">No practice sessions found yet. Start a session from the Quiz tab.</div>` : `
+        ${sessionList.length === 0 ? `<div style="color:var(--text-dim); font-size:0.85rem; padding:0.5rem 0;">No practice sessions found yet. Start a session from the Quiz tab.</div>` : `
           <div style="overflow-x:auto;">
             <table style="width:100%; border-collapse:collapse; font-size:0.85rem; text-align:left;">
               <thead>
@@ -959,7 +975,7 @@ async function loadDashboardAnalytics() {
                 </tr>
               </thead>
               <tbody>
-                ${sessions.map(s => {
+                ${sessionList.map(s => {
                   const isCompleted = s.status === "completed";
                   const isMastered = isCompleted && s.score === 100;
                   const statusTag = isCompleted
