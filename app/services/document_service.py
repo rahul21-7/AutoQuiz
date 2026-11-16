@@ -69,11 +69,33 @@ class DocumentService:
                 try:
                     xml_data = z.read(sfile)
                     tree = ET.fromstring(xml_data)
-                    slide_words = [elem.text for elem in tree.iter() if elem.tag.endswith('}t') and elem.text]
-                    if slide_words:
-                        slides_text.append(" ".join(slide_words))
+                    slide_paras = []
+                    for elem in tree.iter():
+                        if elem.tag.endswith('}p'):
+                            p_texts = [t.text for t in elem.iter() if (t.tag.endswith('}t') or t.tag.endswith('}fld')) and t.text]
+                            p_str = "".join(p_texts).strip()
+                            if p_str:
+                                slide_paras.append(p_str)
+                    if slide_paras:
+                        slides_text.append(". ".join(slide_paras) + ".")
+                    else:
+                        slide_words = [elem.text for elem in tree.iter() if elem.tag.endswith('}t') and elem.text]
+                        if slide_words:
+                            slides_text.append(" ".join(slide_words) + ".")
                 except Exception:
                     continue
+
+            # Also inspect speaker notes slides (ppt/notesSlides/)
+            notes_files = [f for f in z.namelist() if f.startswith("ppt/notesSlides/notesSlide") and f.endswith(".xml")]
+            for nfile in notes_files:
+                try:
+                    xml_data = z.read(nfile)
+                    tree = ET.fromstring(xml_data)
+                    note_words = [elem.text for elem in tree.iter() if elem.tag.endswith('}t') and elem.text]
+                    if note_words:
+                        slides_text.append(" ".join(note_words) + ".")
+                except Exception:
+                    pass
 
             full_text = "\n\n".join(slides_text).strip()
             if not full_text:

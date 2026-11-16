@@ -113,7 +113,7 @@ function startNewChat() {
   if (conv) conv.innerHTML = "";
 
   const titleEl = document.getElementById("chat-header-title");
-  if (titleEl) titleEl.textContent = "✦ AutoQuiz • Adaptive Exam Quizzer";
+  if (titleEl) titleEl.textContent = "AutoQuiz - Adaptive Practice";
 
   const statusEl = document.getElementById("chat-header-status");
   if (statusEl) statusEl.innerHTML = `<span class="status-chip">Ready</span>`;
@@ -133,14 +133,14 @@ function appendMessage(role, htmlContent) {
   const authorName = isAi ? "AutoQuiz Assistant" : (state.currentUser.name || "Student");
 
   const msgDiv = document.createElement("div");
-  msgDiv.className = "chat-msg";
+  msgDiv.className = `chat-msg ${isAi ? 'assistant' : 'user'}`;
   msgDiv.id = msgId;
   msgDiv.innerHTML = `
-    <div class="msg-avatar ${isAi ? 'ai' : 'user'}">${isAi ? '✦' : authorName.charAt(0)}</div>
-    <div class="msg-body">
-      <div class="msg-author">${authorName}</div>
-      <div class="msg-content">${htmlContent}</div>
+    <div class="msg-header-row">
+      <span class="msg-author">${escapeHtml(authorName)}</span>
+      <span style="font-size:0.72rem; color:var(--text-dim);">${new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
     </div>
+    <div class="msg-body">${htmlContent}</div>
   `;
 
   conv.appendChild(msgDiv);
@@ -280,7 +280,7 @@ function initQuizSession(sessionData) {
 
   const headerTitle = document.getElementById("chat-header-title");
   if (headerTitle) {
-    headerTitle.textContent = `✦ Topic: ${sessionData.topic_name || "Course Notes"}`;
+    headerTitle.textContent = `Topic: ${sessionData.topic_name || "Course Notes"}`;
   }
 
   const headerStatus = document.getElementById("chat-header-status");

@@ -3,14 +3,14 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>AutoQuiz — Smart Adaptive Exam Assistant</title>
+  <title>AutoQuiz</title>
 
   <!-- KaTeX for Mathematical Equation Rendering (UC-6, TC-23) -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css">
   <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.js"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/contrib/auto-render.min.js"></script>
 
-  <!-- Google Gemini Inspired Clean Stylesheet -->
+  <!-- Standard Clean Stylesheet (Zero Rounded Corners, No Logo) -->
   <link rel="stylesheet" href="/static/css/styles.css">
 </head>
 <body>
@@ -21,33 +21,32 @@
     <aside class="gemini-sidebar">
       <div class="sidebar-header">
         <div class="brand-row">
-          <span class="brand-icon">✦</span>
           <span class="brand-title">AutoQuiz</span>
         </div>
       </div>
 
-      <!-- + New Practice Button -->
+      <!-- New Practice Button -->
       <button class="btn-new-chat" onclick="startNewChat()">
-        <span>＋</span> New Practice Session
+        <span>+</span> New Practice Session
       </button>
 
-      <div class="sidebar-nav-title">Modes & Tools</div>
+      <div class="sidebar-nav-title">Navigation</div>
       <ul class="sidebar-links">
         <li class="sidebar-link active" data-view="chat" onclick="switchView('chat')">
-          <span>💬</span> Adaptive Quiz Chat
+          Quiz Session
         </li>
         <li class="sidebar-link" data-view="dashboard" onclick="switchView('dashboard')">
-          <span>📊</span> Progress & Heatmap
+          Progress & Heatmap
         </li>
         <li class="sidebar-link" data-view="admin" onclick="switchView('admin')">
-          <span>🛡️</span> Syllabus & Admin
+          Syllabus & Admin
         </li>
         <li class="sidebar-link" data-view="manual" onclick="switchView('manual')">
-          <span>📖</span> User Guide
+          User Guide
         </li>
       </ul>
 
-      <div class="sidebar-nav-title" style="margin-top:1rem;">Recent Materials</div>
+      <div class="sidebar-nav-title" style="margin-top:0.75rem;">Recent Materials</div>
       <ul class="sidebar-links" id="sidebar-recent-list">
         <!-- Populated dynamically with recent documents -->
       </ul>
@@ -55,13 +54,10 @@
       <!-- User Account Footer -->
       <div class="sidebar-footer">
         <div class="user-info">
-          <div class="user-avatar-circle" id="user-avatar-initial">R</div>
-          <div>
-            <div style="font-weight:500; font-size:0.85rem;" id="user-display-name">Dasari Rahul</div>
-            <div style="font-size:0.75rem; color:var(--text-dim);" id="user-display-id">24CSB1A12 (Student)</div>
-          </div>
+          <div style="font-weight:600; color:#ffffff;" id="user-display-name">Dasari Rahul</div>
+          <div style="color:var(--text-dim);" id="user-display-id">24CSB1A12 (Student)</div>
         </div>
-        <button class="btn-secondary" style="padding:0.25rem 0.5rem; font-size:0.75rem;" onclick="openAuthModal()">Switch</button>
+        <button class="btn-secondary" onclick="openAuthModal()">Switch</button>
       </div>
     </aside>
 
@@ -70,20 +66,20 @@
 
       <!-- Chat Top Status Bar -->
       <header class="chat-header">
-        <div class="chat-topic-title" id="chat-header-title">✦ AutoQuiz • Adaptive Exam Quizzer</div>
+        <div class="chat-topic-title" id="chat-header-title">AutoQuiz - Adaptive Practice</div>
         <div id="chat-header-status">
           <span class="status-chip">Ready</span>
         </div>
       </header>
 
       <!-- VIEW A: CHAT FEED VIEW -->
-      <div id="view-chat" style="height: calc(100vh - 50px); display:flex; flex-direction:column; position:relative;">
+      <div id="view-chat" style="height: calc(100vh - 45px); display:flex; flex-direction:column; position:relative;">
         <div class="chat-stream" id="chat-stream">
 
           <!-- Welcome State -->
           <div class="gemini-welcome" id="gemini-welcome-block">
-            <h1>Hello, <span id="welcome-username">Rahul</span></h1>
-            <p>Upload lecture notes, slide decks, or choose a topic to begin an adaptive quiz loop until you attain 100% mastery.</p>
+            <h1 style="font-size:1.3rem;">Welcome, <span id="welcome-username">Rahul</span></h1>
+            <p>Upload lecture slides or notes (PDF, PPTX, Markdown, or TXT) to generate an adaptive quiz loop until you attain 100% mastery.</p>
 
             <div class="suggestion-grid">
               <div class="suggestion-card" onclick="quickStartSample('ml')">
@@ -91,11 +87,11 @@
                 <div class="suggestion-sub">PDF • L1/L2 Regularization, Bias-Variance</div>
               </div>
               <div class="suggestion-card" onclick="quickStartSample('code')">
-                <div class="suggestion-title">Algorithms & LaTeX Math</div>
+                <div class="suggestion-title">Algorithms & Math</div>
                 <div class="suggestion-sub">Markdown • Asymptotics, Summation Bounds</div>
               </div>
               <div class="suggestion-card" onclick="quickStartSample('biz')">
-                <div class="suggestion-title">Business & Financial Essentials</div>
+                <div class="suggestion-title">Business & Finance</div>
                 <div class="suggestion-sub">TXT • Cash Flow, Valuation & Balance Sheets</div>
               </div>
             </div>
@@ -106,40 +102,40 @@
 
         </div>
 
-        <!-- Bottom Gemini Prompt Input Bar -->
+        <!-- Bottom Prompt Input Bar -->
         <div class="chat-input-wrapper">
           <div class="chat-input-box">
             <input type="file" id="file-input" style="display:none;" accept=".pdf,.pptx,.ppt,.txt,.md" onchange="handleFileSelected(this.files)">
-            <button class="btn-attach" type="button" title="Attach lecture PDF, PPTX, TXT, or MD" onclick="document.getElementById('file-input').click()">
-              📎
+            <button class="btn-attach" type="button" title="Attach file (PDF, PPTX, TXT, MD)" onclick="document.getElementById('file-input').click()">
+              Attach File
             </button>
-            <input type="text" id="chat-input" class="chat-text-input" placeholder="Upload notes (PDF/PPTX/TXT/MD) or type a command..." onkeydown="handleChatInputKey(event)">
-            <button class="btn-send" type="button" title="Send" onclick="handleSendClicked()">
-              ➤
+            <input type="text" id="chat-input" class="chat-text-input" placeholder="Type a message or attach lecture notes (PDF/PPTX/TXT/MD)..." onkeydown="handleChatInputKey(event)">
+            <button class="btn-send" type="button" onclick="handleSendClicked()">
+              Send
             </button>
           </div>
-          <div id="upload-status" style="max-width:860px; margin:0.4rem auto 0 auto; font-size:0.8rem;"></div>
+          <div id="upload-status" style="max-width:900px; margin:0.3rem auto 0 auto; font-size:0.8rem;"></div>
         </div>
       </div>
 
       <!-- VIEW B: DASHBOARD & HEATMAP VIEW -->
       <div id="view-dashboard" class="view-panel">
-        <h2 style="font-size:1.35rem; font-weight:500; margin-bottom:0.5rem;">Performance Analytics & Weakness Heatmap</h2>
-        <p style="color:var(--text-muted); font-size:0.88rem; margin-bottom:1.5rem;">Sub-second evaluation metrics, First-Attempt vs Looped Mastery (BR-4), and retention alerts.</p>
+        <h2 style="font-size:1.2rem; font-weight:600; margin-bottom:0.4rem;">Performance Analytics & Weakness Heatmap</h2>
+        <p style="color:var(--text-muted); font-size:0.85rem; margin-bottom:1.25rem;">Sub-second evaluation metrics, First-Attempt vs Looped Mastery (BR-4), and retention alerts.</p>
         <div id="analytics-view-container"></div>
       </div>
 
       <!-- VIEW C: ADMIN & SYLLABUS VIEW -->
       <div id="view-admin" class="view-panel">
-        <h2 style="font-size:1.35rem; font-weight:500; margin-bottom:0.5rem;">Syllabus Taxonomy & Instructor Controls</h2>
-        <p style="color:var(--text-muted); font-size:0.88rem; margin-bottom:1.5rem;">Manage curriculum topics, reset test attempts, and trigger retention decay audits.</p>
+        <h2 style="font-size:1.2rem; font-weight:600; margin-bottom:0.4rem;">Syllabus Taxonomy & Instructor Controls</h2>
+        <p style="color:var(--text-muted); font-size:0.85rem; margin-bottom:1.25rem;">Manage curriculum topics, reset test attempts, and trigger retention decay audits.</p>
         <div class="panel-card">
-          <h3 style="font-size:1.05rem; margin-bottom:1rem;">Taxonomy Curriculum Topics</h3>
+          <h3 style="font-size:0.95rem; margin-bottom:0.75rem;">Taxonomy Curriculum Topics</h3>
           <div id="admin-taxonomy-container"></div>
         </div>
         <div class="panel-card">
-          <h3 style="font-size:1.05rem; margin-bottom:0.75rem;">Instructor Operations</h3>
-          <div style="display:flex; gap:0.6rem; flex-wrap:wrap;">
+          <h3 style="font-size:0.95rem; margin-bottom:0.75rem;">Instructor Operations</h3>
+          <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
             <button class="btn-secondary" onclick="adminWipeVectors()">Wipe Vector Store</button>
             <button class="btn-secondary" onclick="adminResetStudent()">Reset Student Attempts</button>
             <button class="btn-secondary" onclick="triggerBackgroundAudit()">Run Retention Decay Audit</button>
@@ -149,16 +145,16 @@
 
       <!-- VIEW D: USER MANUAL VIEW -->
       <div id="view-manual" class="view-panel">
-        <h2 style="font-size:1.35rem; font-weight:500; margin-bottom:0.5rem;">AutoQuiz Workflow & Rules Guide</h2>
-        <div class="panel-card" style="line-height:1.7;">
-          <h3 style="color:var(--google-blue); font-size:1rem; margin-bottom:0.3rem;">1. Document Ingestion (BR-1)</h3>
-          <p style="color:var(--text-muted); font-size:0.88rem; margin-bottom:1rem;">Attach any lecture notes in PDF, PPTX, TXT, or Markdown. The system parses AST code blocks and LaTeX equations locally, embedding them into local vector storage for grounded question synthesis.</p>
+        <h2 style="font-size:1.2rem; font-weight:600; margin-bottom:0.4rem;">AutoQuiz Workflow & Rules Guide</h2>
+        <div class="panel-card" style="line-height:1.6;">
+          <h3 style="font-size:0.95rem; margin-bottom:0.25rem; color:#ffffff;">1. Document Ingestion (BR-1)</h3>
+          <p style="color:var(--text-muted); font-size:0.85rem; margin-bottom:0.85rem;">Upload lecture slides or notes in PDF, PPTX, TXT, or Markdown. The system parses AST code blocks and LaTeX equations locally, embedding them into local vector storage for grounded question synthesis.</p>
           
-          <h3 style="color:var(--google-blue); font-size:1rem; margin-bottom:0.3rem;">2. Adaptive Remediation Loop (BR-2)</h3>
-          <p style="color:var(--text-muted); font-size:0.88rem; margin-bottom:1rem;">Advancement requires a strict 100% score on the current loop iteration. If you miss questions, AutoQuiz isolates your weak points, frames brand new grounded questions, and loops until complete mastery.</p>
+          <h3 style="font-size:0.95rem; margin-bottom:0.25rem; color:#ffffff;">2. Adaptive Remediation Loop (BR-2)</h3>
+          <p style="color:var(--text-muted); font-size:0.85rem; margin-bottom:0.85rem;">Advancement requires a strict 100% score on the current loop iteration. If you miss questions, AutoQuiz isolates your weak points, frames brand new grounded questions, and loops until complete mastery.</p>
 
-          <h3 style="color:var(--warning-amber); font-size:1rem; margin-bottom:0.3rem;">3. Anti-Guessing Confidence Guard (BR-6)</h3>
-          <p style="color:var(--text-muted); font-size:0.88rem; margin-bottom:1rem;">For every answer, tag your confidence (High, Medium, or Low). Correct answers tagged with Low confidence are marked Unverified and re-tested in subsequent loops to prevent bypassing weak points with lucky guesses.</p>
+          <h3 style="font-size:0.95rem; margin-bottom:0.25rem; color:#ffffff;">3. Anti-Guessing Confidence Guard (BR-6)</h3>
+          <p style="color:var(--text-muted); font-size:0.85rem; margin-bottom:0.85rem;">For every answer, tag your confidence (High, Medium, or Low). Correct answers tagged with Low confidence are marked Unverified and re-tested in subsequent loops to prevent bypassing weak points with lucky guesses.</p>
         </div>
       </div>
 
@@ -169,8 +165,8 @@
   <!-- Duplicate Resolution Modal (REQ_05, TC-13 to TC-16) -->
   <div class="modal-overlay" id="duplicate-modal" style="display:none;">
     <div class="modal-card">
-      <h3 style="font-size:1.15rem; color:var(--warning-amber); margin-bottom:0.5rem;">Duplicate Document Detected</h3>
-      <p id="duplicate-modal-msg" style="color:var(--text-muted); font-size:0.88rem; margin-bottom:1.25rem;"></p>
+      <h3 style="font-size:1.05rem; color:var(--warning-amber); margin-bottom:0.4rem;">Duplicate Document Detected</h3>
+      <p id="duplicate-modal-msg" style="color:var(--text-muted); font-size:0.85rem; margin-bottom:1rem;"></p>
       <div class="modal-actions">
         <button class="btn-secondary" onclick="closeDuplicateModal()">Cancel</button>
         <button class="btn-secondary" onclick="resolveDuplicate('version')">New Version</button>
@@ -182,17 +178,17 @@
   <!-- User Switcher Modal -->
   <div class="modal-overlay" id="auth-modal" style="display:none;">
     <div class="modal-card">
-      <h3 style="font-size:1.15rem; margin-bottom:0.5rem;">Switch Active User Account</h3>
-      <p style="color:var(--text-muted); font-size:0.85rem; margin-bottom:1rem;">Select an account to test student data isolation (SRS 5.3):</p>
-      <div style="display:flex; flex-direction:column; gap:0.5rem;">
-        <button class="btn-secondary" style="text-align:left; padding:0.65rem 0.85rem;" onclick="switchUserAccount('24CSB1A12', 'secret_pass', 'student')">
-          👤 <strong>Student A: Dasari Rahul (24CSB1A12)</strong>
+      <h3 style="font-size:1.05rem; margin-bottom:0.4rem;">Switch Active User Account</h3>
+      <p style="color:var(--text-muted); font-size:0.85rem; margin-bottom:0.85rem;">Select an account to test student data isolation (SRS 5.3):</p>
+      <div style="display:flex; flex-direction:column; gap:0.4rem;">
+        <button class="btn-secondary" style="text-align:left; padding:0.5rem 0.75rem;" onclick="switchUserAccount('24CSB1A12', 'secret_pass', 'student')">
+          <strong>Student A: Dasari Rahul (24CSB1A12)</strong>
         </button>
-        <button class="btn-secondary" style="text-align:left; padding:0.65rem 0.85rem;" onclick="switchUserAccount('24CSB1A13', 'student_pass_13', 'student')">
-          👤 <strong>Student B: Devarapaga Surya Teja (24CSB1A13)</strong>
+        <button class="btn-secondary" style="text-align:left; padding:0.5rem 0.75rem;" onclick="switchUserAccount('24CSB1A13', 'student_pass_13', 'student')">
+          <strong>Student B: Devarapaga Surya Teja (24CSB1A13)</strong>
         </button>
-        <button class="btn-secondary" style="text-align:left; padding:0.65rem 0.85rem;" onclick="switchUserAccount('admin', 'admin_pass_2026', 'admin')">
-          🛡️ <strong>Course Instructor / System Admin</strong>
+        <button class="btn-secondary" style="text-align:left; padding:0.5rem 0.75rem;" onclick="switchUserAccount('admin', 'admin_pass_2026', 'admin')">
+          <strong>Course Instructor / System Admin</strong>
         </button>
       </div>
       <div class="modal-actions">

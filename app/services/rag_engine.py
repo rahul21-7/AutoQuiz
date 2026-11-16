@@ -71,10 +71,11 @@ class RAGEngine:
             raw_text = " ".join(c.get("content", "") for c in context_chunks)
 
         # 3. Insufficient Context Check (Exception 2.0.E.1 / TC-32)
-        # If document / context is a single sentence or very brief (< 80 chars or < 12 words)
+        # Halts only on genuine empty / one-sentence / trivial fragments like "Brief note."
         words = raw_text.strip().split()
-        sentence_count = len([s for s in re.split(r'[.!?]+', raw_text) if s.strip()])
-        if len(raw_text.strip()) < 80 or len(words) < 12 or sentence_count <= 1:
+        statements = [s.strip() for s in re.split(r'[.!?\n\r;]+', raw_text) if len(s.strip().split()) >= 2]
+        
+        if len(raw_text.strip()) < 30 or len(words) < 5 or (len(statements) <= 1 and len(words) < 15):
             raise ValueError("Insufficient context for loop generation: Uploaded material lacks sufficient factual depth to synthesize non-repetitive practice questions. Please upload supplementary study notes for this topic.")
 
         # 4. Synthesize questions with retry on formatting error (Exception 8.0.E.1 / TC-30, TC-31)
@@ -137,8 +138,8 @@ class RAGEngine:
         Synthesizes context-grounded questions with 1 correct answer and 3 plausible distractors (REQ_07).
         Guarantees zero hallucinations (SRS 5.4, TC-33) and zero repetition (BR-3, TC-28).
         """
-        # Extract sentences and concepts from text
-        sentences = [s.strip() for s in re.split(r'[.!?\n]+', raw_text) if len(s.strip()) > 20]
+        # Extract sentences and concepts from text (accommodating slide bullets and short declarative statements)
+        sentences = [s.strip() for s in re.split(r'[.!?\n]+', raw_text) if len(s.strip()) >= 10]
         if not sentences:
             sentences = [raw_text.strip()]
 
@@ -155,7 +156,7 @@ class RAGEngine:
             phrases = re.split(r'[,;:-]', s)
             for p in phrases:
                 clean_p = p.strip()
-                if 8 < len(clean_p) < 60:
+                if 4 < len(clean_p) < 80:
                     distractor_pool.append(clean_p)
 
         if len(distractor_pool) < 4:
