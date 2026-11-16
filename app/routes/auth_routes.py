@@ -8,7 +8,7 @@ auth_bp = Blueprint("auth", __name__)
 @auth_bp.route("/register", methods=["POST"])
 def register():
     """Positive: Register Student A and Student B with salted PBKDF2/Bcrypt hashes (SRS 5.3, TC-01)."""
-    data = request.get_json() or {}
+    data = request.get_json(silent=True) or {}
     user_id = data.get("user_id", "").strip()
     name = data.get("name", "").strip() or user_id
     password = data.get("password", "")
@@ -46,7 +46,7 @@ def login():
     Positive & Negative: Authenticates user credentials.
     Rejects wrong passwords and unknown users with generic error message (SRS 5.3, TC-02, TC-03).
     """
-    data = request.get_json() or {}
+    data = request.get_json(silent=True) or {}
     user_id = data.get("user_id", "").strip()
     password = data.get("password", "")
 

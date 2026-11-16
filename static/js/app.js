@@ -1,7 +1,11 @@
 /**
- * AutoQuiz Web Client Application
- * Implements SRS & Vision Document workflows: Ingestion, Adaptive Remediation,
- * Confidence Guard, Spaced Repetition Verification, and Analytics Heatmap.
+ * AutoQuiz Web Client Application — Gemini Clean Chat Edition
+ * Features:
+ *  1. Conversational Chat Interface (Normal Rectangles, Flat Design)
+ *  2. Drag & Drop / File Attachment (PDF, PPTX, TXT, MD)
+ *  3. Adaptive Remediation Loops until 100% Mastery (BR-2)
+ *  4. Confidence Guard & Unverified Retry (BR-6)
+ *  5. LaTeX Math & AST Code Block Preservation
  */
 
 const state = {
@@ -10,7 +14,7 @@ const state = {
     name: "Dasari Rahul",
     role: "student"
   },
-  activeTab: "dashboard",
+  currentView: "chat",
   documents: [],
   topics: [],
   activeSession: null,
@@ -24,32 +28,41 @@ const state = {
 // --- Initialization ---
 document.addEventListener("DOMContentLoaded", () => {
   setupNavigation();
-  setupUploadDropzone();
   checkAuthAndLoad();
+  loadRecentMaterials();
 });
 
 function setupNavigation() {
-  document.querySelectorAll(".nav-btn").forEach(btn => {
-    btn.addEventListener("click", () => {
-      const target = btn.dataset.target;
-      switchTab(target);
+  document.querySelectorAll(".sidebar-link").forEach(link => {
+    link.addEventListener("click", () => {
+      const view = link.dataset.view;
+      if (view) switchView(view);
     });
   });
 }
 
-function switchTab(tabId) {
-  state.activeTab = tabId;
-  document.querySelectorAll(".nav-btn").forEach(b => b.classList.toggle("active", b.dataset.target === tabId));
-  document.querySelectorAll(".tab-pane").forEach(p => p.classList.toggle("active", p.id === `tab-${tabId}`));
+function switchView(viewName) {
+  state.currentView = viewName;
+  document.querySelectorAll(".sidebar-link").forEach(l => {
+    l.classList.toggle("active", l.dataset.view === viewName);
+  });
 
-  if (tabId === "dashboard" || tabId === "analytics") {
+  const views = ["chat", "dashboard", "admin", "manual"];
+  views.forEach(v => {
+    const el = document.getElementById(`view-${v}`);
+    if (el) {
+      if (v === "chat") {
+        el.style.display = viewName === "chat" ? "flex" : "none";
+      } else {
+        el.style.display = viewName === v ? "block" : "none";
+      }
+    }
+  });
+
+  if (viewName === "dashboard") {
     loadDashboardAnalytics();
-  } else if (tabId === "practice") {
-    loadTopicsForPractice();
-  } else if (tabId === "admin") {
+  } else if (viewName === "admin") {
     loadAdminTaxonomy();
-  } else if (tabId === "ingest") {
-    loadDocumentList();
   }
 }
 
@@ -61,31 +74,136 @@ async function checkAuthAndLoad() {
       state.currentUser = { userId: data.user_id, name: data.name, role: data.role };
     }
   } catch (e) {
-    console.warn("Using default student session:", e);
+    console.warn("Using default student credentials:", e);
   }
-  updateUserBadge();
-  switchTab("dashboard");
+  updateUserProfileDisplay();
 }
 
-function updateUserBadge() {
-  const badge = document.getElementById("user-profile-display");
-  if (badge) {
-    badge.innerHTML = `
-      <span class="user-tag">👤 ${state.currentUser.userId} (${state.currentUser.role.toUpperCase()})</span>
-      <button class="btn-secondary" style="padding:0.3rem 0.6rem; font-size:0.8rem;" onclick="openAuthModal()">Switch User</button>
-    `;
-  }
-  // Show or hide admin tab
-  const adminBtn = document.querySelector('[data-target="admin"]');
-  if (adminBtn) {
-    adminBtn.style.display = (state.currentUser.role === "admin" || state.currentUser.userId === "admin") ? "block" : "none";
+function updateUserProfileDisplay() {
+  const nameEl = document.getElementById("user-display-name");
+  const idEl = document.getElementById("user-display-id");
+  const avatarEl = document.getElementById("user-avatar-initial");
+  const welcomeEl = document.getElementById("welcome-username");
+
+  const firstName = state.currentUser.name.split(" ")[0] || "Student";
+  if (nameEl) nameEl.textContent = state.currentUser.name;
+  if (idEl) idEl.textContent = `${state.currentUser.userId} (${state.currentUser.role.toUpperCase()})`;
+  if (avatarEl) avatarEl.textContent = state.currentUser.name.charAt(0).toUpperCase();
+  if (welcomeEl) welcomeEl.textContent = firstName;
+
+  // Toggle admin sidebar item based on role
+  const adminLink = document.querySelector('[data-view="admin"]');
+  if (adminLink) {
+    adminLink.style.display = (state.currentUser.role === "admin" || state.currentUser.userId === "admin") ? "flex" : "none";
   }
 }
 
-// --- 1-Click Quick Start & Sample Loader ---
+function startNewChat() {
+  state.activeSession = null;
+  state.currentQuestionIndex = 0;
+  state.submittedAnswers = [];
+  state.currentSelection = null;
+  state.currentConfidence = null;
+
+  switchView("chat");
+  const welcome = document.getElementById("gemini-welcome-block");
+  if (welcome) welcome.style.display = "block";
+
+  const conv = document.getElementById("chat-conversation");
+  if (conv) conv.innerHTML = "";
+
+  const titleEl = document.getElementById("chat-header-title");
+  if (titleEl) titleEl.textContent = "✦ AutoQuiz • Adaptive Exam Quizzer";
+
+  const statusEl = document.getElementById("chat-header-status");
+  if (statusEl) statusEl.innerHTML = `<span class="status-chip">Ready</span>`;
+}
+
+// --- Chat Message Appender ---
+function appendMessage(role, htmlContent) {
+  const conv = document.getElementById("chat-conversation");
+  if (!conv) return null;
+
+  // Hide welcome banner once conversation starts
+  const welcome = document.getElementById("gemini-welcome-block");
+  if (welcome) welcome.style.display = "none";
+
+  const msgId = "msg_" + Math.random().toString(36).substring(2, 9);
+  const isAi = role === "ai";
+  const authorName = isAi ? "AutoQuiz Assistant" : (state.currentUser.name || "Student");
+
+  const msgDiv = document.createElement("div");
+  msgDiv.className = "chat-msg";
+  msgDiv.id = msgId;
+  msgDiv.innerHTML = `
+    <div class="msg-avatar ${isAi ? 'ai' : 'user'}">${isAi ? '✦' : authorName.charAt(0)}</div>
+    <div class="msg-body">
+      <div class="msg-author">${authorName}</div>
+      <div class="msg-content">${htmlContent}</div>
+    </div>
+  `;
+
+  conv.appendChild(msgDiv);
+
+  // Auto scroll chat to bottom
+  const stream = document.getElementById("chat-stream");
+  if (stream) {
+    stream.scrollTop = stream.scrollHeight;
+  }
+
+  // Render LaTeX math
+  if (window.renderMathInElement) {
+    window.renderMathInElement(msgDiv, {
+      delimiters: [
+        {left: '$$', right: '$$', display: true},
+        {left: '$', right: '$', display: false}
+      ]
+    });
+  }
+
+  return msgDiv;
+}
+
+// --- File Attachment & Sample Starters ---
+function handleFileSelected(fileList) {
+  if (!fileList || fileList.length === 0) return;
+  const file = fileList[0];
+  document.getElementById("file-input").value = "";
+  uploadAndStartQuiz(file);
+}
+
+function handleChatInputKey(e) {
+  if (e.key === "Enter") {
+    handleSendClicked();
+  }
+}
+
+function handleSendClicked() {
+  const input = document.getElementById("chat-input");
+  const text = (input.value || "").trim();
+  if (!text) return;
+  input.value = "";
+
+  appendMessage("user", escapeHtml(text));
+
+  // If user typed something when no session is active, guide them
+  if (!state.activeSession) {
+    appendMessage("ai", `
+      Please attach your course notes using the paperclip 📎 button or click one of the suggested sample topics above to generate your adaptive quiz loop.
+    `);
+  }
+}
+
 async function quickStartSample(sampleType) {
-  const status = document.getElementById("upload-status");
-  status.innerHTML = `<div class="alert-banner warning">⏳ Extracting concepts from sample notes and synthesizing targeted questions...</div>`;
+  const sampleNames = {
+    ml: "Machine Learning Overfitting (PDF)",
+    code: "Algorithms & LaTeX Math (Markdown)",
+    biz: "Business & Financial Essentials (TXT)"
+  };
+  const title = sampleNames[sampleType] || sampleType;
+
+  appendMessage("user", `⚡ Practice sample topic: <strong>${escapeHtml(title)}</strong>`);
+  const loadingMsg = appendMessage("ai", `⏳ Grounding course material from <strong>${escapeHtml(title)}</strong> and generating initial question loop...`);
 
   try {
     const res = await fetch("/api/quiz/quick-start", {
@@ -96,63 +214,31 @@ async function quickStartSample(sampleType) {
       },
       body: JSON.stringify({ sample: sampleType })
     });
-    
-    const textResponse = await res.text();
+
+    const textRes = await res.text();
     let data;
-    try {
-      data = JSON.parse(textResponse);
-    } catch (parseErr) {
-      status.innerHTML = `<div class="alert-banner danger">❌ Server Error: ${escapeHtml(textResponse.slice(0, 150))}</div>`;
+    try { data = JSON.parse(textRes); } catch (_) { throw new Error(textRes); }
+
+    if (!res.ok) {
+      loadingMsg.querySelector(".msg-content").innerHTML = `❌ Error: ${data.error || "Failed to load sample"}`;
       return;
     }
 
-    if (!res.ok) {
-      status.innerHTML = `<div class="alert-banner danger">❌ Error: ${data.error || "Failed to start quiz"}</div>`;
-      return;
-    }
-    status.innerHTML = "";
-    startActiveQuiz(data);
-  } catch (e) {
-    status.innerHTML = `<div class="alert-banner danger">❌ Network error: ${e.message}</div>`;
+    loadingMsg.remove();
+    initQuizSession(data);
+    loadRecentMaterials();
+  } catch (err) {
+    loadingMsg.querySelector(".msg-content").innerHTML = `❌ Connection Error: ${escapeHtml(err.message)}`;
   }
 }
 
-function setupUploadDropzone() {
-  const dropzone = document.getElementById("upload-dropzone");
-  const fileInput = document.getElementById("file-input");
-
-  if (!dropzone || !fileInput) return;
-
-  dropzone.addEventListener("click", () => fileInput.click());
-  dropzone.addEventListener("dragover", (e) => {
-    e.preventDefault();
-    dropzone.classList.add("dragover");
-  });
-  dropzone.addEventListener("dragleave", () => dropzone.classList.remove("dragover"));
-  dropzone.addEventListener("drop", (e) => {
-    e.preventDefault();
-    dropzone.classList.remove("dragover");
-    if (e.dataTransfer.files.length > 0) {
-      handleFileUpload(e.dataTransfer.files[0]);
-    }
-  });
-
-  fileInput.addEventListener("change", () => {
-    if (fileInput.files.length > 0) {
-      handleFileUpload(fileInput.files[0]);
-    }
-  });
-}
-
-// Handle file upload with direct 1-step quiz launch
-async function handleFileUpload(file, overwrite = true, createNewVersion = false) {
-  const statusBanner = document.getElementById("upload-status");
-  statusBanner.innerHTML = `<div class="alert-banner warning">⏳ Parsing '${file.name}', extracting AST code/LaTeX, and generating quiz...</div>`;
+async function uploadAndStartQuiz(file) {
+  appendMessage("user", `📎 Uploaded study material: <strong>${escapeHtml(file.name)}</strong>`);
+  const loadingMsg = appendMessage("ai", `⏳ Parsing <strong>${escapeHtml(file.name)}</strong>, extracting AST code and LaTeX formulas, and preparing your quiz...`);
 
   const formData = new FormData();
   formData.append("file", file);
-  if (overwrite) formData.append("overwrite", "true");
-  if (createNewVersion) formData.append("create_new_version", "true");
+  formData.append("overwrite", "true");
 
   try {
     const res = await fetch("/api/quiz/quick-start", {
@@ -161,195 +247,55 @@ async function handleFileUpload(file, overwrite = true, createNewVersion = false
       body: formData
     });
 
-    const textResponse = await res.text();
+    const textRes = await res.text();
     let data;
-    try {
-      data = JSON.parse(textResponse);
-    } catch (parseErr) {
-      statusBanner.innerHTML = `<div class="alert-banner danger">❌ Server Error: ${escapeHtml(textResponse.slice(0, 150))}</div>`;
-      return;
-    }
+    try { data = JSON.parse(textRes); } catch (_) { throw new Error(textRes); }
 
     if (res.status === 200 && data.status === "duplicate_prompt") {
+      loadingMsg.remove();
       state.pendingDuplicateFile = file;
       showDuplicateModal(data.message);
-      statusBanner.innerHTML = "";
       return;
     }
 
     if (!res.ok) {
-      statusBanner.innerHTML = `<div class="alert-banner danger">❌ Ingestion Error: ${data.error || "Upload failed."}</div>`;
+      loadingMsg.querySelector(".msg-content").innerHTML = `❌ Ingestion Error: ${escapeHtml(data.error || "Upload failed.")}`;
       return;
     }
 
-    statusBanner.innerHTML = "";
-    startActiveQuiz(data);
+    loadingMsg.remove();
+    initQuizSession(data);
+    loadRecentMaterials();
   } catch (err) {
-    statusBanner.innerHTML = `<div class="alert-banner danger">❌ Ingestion Error: ${err.message}</div>`;
+    loadingMsg.querySelector(".msg-content").innerHTML = `❌ Ingestion Error: ${escapeHtml(err.message)}`;
   }
 }
 
-function startActiveQuiz(sessionData) {
+function initQuizSession(sessionData) {
   state.activeSession = sessionData;
   state.currentQuestionIndex = sessionData.current_index || 0;
   state.submittedAnswers = sessionData.saved_answers || [];
   state.currentSelection = null;
   state.currentConfidence = null;
 
-  const setupPanel = document.getElementById("quizzer-setup-panel");
-  const arena = document.getElementById("practice-arena");
-
-  if (setupPanel) setupPanel.style.display = "none";
-  if (arena) arena.style.display = "block";
-
-  renderCurrentQuestion();
-}
-
-function showDuplicateModal(message) {
-  const modal = document.getElementById("duplicate-modal");
-  document.getElementById("duplicate-modal-msg").innerText = message;
-  modal.style.display = "flex";
-}
-
-function closeDuplicateModal() {
-  document.getElementById("duplicate-modal").style.display = "none";
-  state.pendingDuplicateFile = null;
-}
-
-function resolveDuplicate(action) {
-  const file = state.pendingDuplicateFile;
-  closeDuplicateModal();
-  if (action === "overwrite") {
-    handleFileUpload(file, true, false);
-  } else if (action === "version") {
-    handleFileUpload(file, false, true);
+  const headerTitle = document.getElementById("chat-header-title");
+  if (headerTitle) {
+    headerTitle.textContent = `✦ Topic: ${sessionData.topic_name || "Course Notes"}`;
   }
-}
 
-async function loadDocumentList() {
-  const container = document.getElementById("documents-container");
-  if (!container) return;
-
-  try {
-    const res = await fetch("/api/documents", {
-      headers: { "X-User-ID": state.currentUser.userId }
-    });
-    const data = await res.json();
-    state.documents = data.documents || [];
-
-    if (state.documents.length === 0) {
-      container.innerHTML = `<p class="metric-caption">No uploaded documents yet. Upload a PDF, Markdown, or TXT file above.</p>`;
-      return;
-    }
-
-    container.innerHTML = state.documents.map(doc => `
-      <div class="topic-row">
-        <div>
-          <strong>${doc.title}</strong> <span class="status-badge unmastered">${doc.file_type}</span>
-          <div class="metric-caption">Chunks: ${doc.chunk_count} | Version: ${doc.version}</div>
-        </div>
-        <div>
-          <button class="btn-secondary" onclick="viewDocumentTopics('${doc.doc_id}')">Practice Topics</button>
-        </div>
-      </div>
-    `).join("");
-  } catch (e) {
-    container.innerHTML = `<p class="metric-caption text-danger">Failed to load documents.</p>`;
+  const headerStatus = document.getElementById("chat-header-status");
+  if (headerStatus) {
+    headerStatus.innerHTML = `<span class="status-chip remediation">Practice Loop In Progress</span>`;
   }
+
+  renderCurrentQuestionInChat();
 }
 
-// --- Adaptive Practice Loop (UC-2, REQ_10, REQ_11, REQ_12, BR-2, BR-6) ---
-async function loadTopicsForPractice() {
-  const container = document.getElementById("practice-topics-container");
-  if (!container) return;
-
-  try {
-    const res = await fetch("/api/quiz/topics", {
-      headers: { "X-User-ID": state.currentUser.userId }
-    });
-    const data = await res.json();
-    state.topics = data.topics || [];
-
-    if (state.topics.length === 0) {
-      container.innerHTML = `
-        <div class="alert-banner warning">
-          No topics available. Please upload a course document (PDF/MD/TXT) in the Document Ingestion tab.
-        </div>
-      `;
-      return;
-    }
-
-    container.innerHTML = state.topics.map(t => {
-      const isLocked = !t.is_unlocked;
-      const statusClass = t.mastery_status.toLowerCase().replace(" ", "-");
-      return `
-        <div class="topic-row ${isLocked ? 'locked' : ''}">
-          <div class="topic-meta">
-            <div>
-              <strong>${t.name}</strong>
-              <div class="metric-caption">Attempts: ${t.attempt_count} | Sequential Node #${t.order_index + 1}</div>
-            </div>
-          </div>
-          <div style="display:flex; align-items:center; gap:0.75rem;">
-            <span class="status-badge ${statusClass}">${t.mastery_status}</span>
-            ${isLocked ?
-              `<button class="btn-secondary" disabled title="Locked: Complete previous module with 100% mastery first">🔒 Locked</button>` :
-              `<button class="btn-primary" onclick="launchQuizSession('${t.topic_id}')">Start Practice Loop</button>`
-            }
-          </div>
-        </div>
-      `;
-    }).join("");
-  } catch (err) {
-    container.innerHTML = `<p class="metric-caption text-danger">Error loading topics: ${err.message}</p>`;
-  }
-}
-
-function viewDocumentTopics(docId) {
-  switchTab("practice");
-}
-
-async function launchQuizSession(topicId) {
-  const arena = document.getElementById("practice-arena");
-  const setupPanel = document.getElementById("quizzer-setup-panel");
-  const listArea = document.getElementById("practice-list-area");
-
-  try {
-    const res = await fetch("/api/quiz/session/start", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-User-ID": state.currentUser.userId
-      },
-      body: JSON.stringify({ topic_id: topicId, num_questions: 3 })
-    });
-
-    const data = await res.json();
-    if (!res.ok) {
-      alert(`Cannot start session: ${data.error}`);
-      return;
-    }
-
-    state.activeSession = data;
-    state.currentQuestionIndex = data.current_index || 0;
-    state.submittedAnswers = data.saved_answers || [];
-    state.currentSelection = null;
-    state.currentConfidence = null;
-
-    if (setupPanel) setupPanel.style.display = "none";
-    if (listArea) listArea.style.display = "none";
-    if (arena) arena.style.display = "block";
-    renderCurrentQuestion();
-  } catch (e) {
-    alert(`Session launch failed: ${e.message}`);
-  }
-}
-
-function renderCurrentQuestion() {
+// --- Question Rendering in Chat Stream ---
+function renderCurrentQuestionInChat() {
   const session = state.activeSession;
   if (!session || !session.questions || state.currentQuestionIndex >= session.questions.length) {
-    // Completed all questions in the loop, prompt submission
-    renderLoopSubmissionSummary();
+    submitFullLoop();
     return;
   }
 
@@ -360,87 +306,84 @@ function renderCurrentQuestion() {
   state.currentSelection = null;
   state.currentConfidence = null;
 
-  const container = document.getElementById("active-question-container");
-  container.innerHTML = `
-    <div class="question-card">
-      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
-        <span class="status-badge in-progress">Question ${qNum} of ${total}</span>
-        <button class="btn-secondary" style="font-size:0.8rem; padding:0.3rem 0.6rem;" onclick="promptEarlyExit()">Exit Session</button>
-      </div>
-      
-      <div class="question-stem" id="q-stem-text">${escapeHtml(q.question)}</div>
+  const letters = ["A", "B", "C", "D"];
 
-      <div class="options-grid">
+  const questionHtml = `
+    <div class="quiz-box" id="active-quiz-box">
+      <div class="quiz-header">
+        <span style="font-size:0.82rem; font-weight:600; color:var(--google-blue);">QUESTION ${qNum} OF ${total}</span>
+        <button class="btn-secondary" style="padding:0.2rem 0.5rem; font-size:0.75rem;" onclick="promptEarlyExit()">Exit Loop</button>
+      </div>
+
+      <div class="quiz-stem">${escapeHtml(q.question)}</div>
+
+      <div class="quiz-options">
         ${q.options.map((opt, i) => `
-          <label class="option-label" id="opt-label-${i}" onclick="selectAnswerOption(${i}, '${escapeForJs(opt)}')">
-            <span class="option-badge">${['A', 'B', 'C', 'D'][i] || (i + 1)}</span>
-            <input type="radio" name="practice_option" value="${escapeHtml(opt)}">
+          <button type="button" class="quiz-option-btn" id="q-opt-${i}" onclick="selectChatOption(${i}, '${escapeForJs(opt)}')">
+            <span class="opt-letter">${letters[i] || (i + 1)}</span>
             <span style="flex:1;">${escapeHtml(opt)}</span>
-          </label>
+          </button>
         `).join("")}
       </div>
 
-      <!-- 1-Click Confidence Tagging Selector (REQ_10, TC-49, TC-50) -->
-      <div class="confidence-selector-container">
-        <div class="confidence-title">
-          <span>🎯 Select Your Confidence Rating (Mandatory):</span>
-        </div>
-        <div class="confidence-radios">
-          <div class="confidence-pill high" onclick="selectConfidenceRating('High', this)">High Confidence</div>
-          <div class="confidence-pill medium" onclick="selectConfidenceRating('Medium', this)">Medium Confidence</div>
-          <div class="confidence-pill low" onclick="selectConfidenceRating('Low', this)">Low Confidence</div>
+      <!-- Mandatory Confidence Rating -->
+      <div class="confidence-bar">
+        <div class="confidence-label">Rate your confidence (Mandatory):</div>
+        <div class="confidence-buttons">
+          <button type="button" class="btn-conf high" onclick="selectChatConfidence('High', this)">High Confidence</button>
+          <button type="button" class="btn-conf medium" onclick="selectChatConfidence('Medium', this)">Medium Confidence</button>
+          <button type="button" class="btn-conf low" onclick="selectChatConfidence('Low', this)">Low Confidence</button>
         </div>
       </div>
 
-      <div style="display:flex; justify-content:flex-end;">
-        <button class="btn-primary" id="btn-submit-q" onclick="submitCurrentQuestionAnswer()">
+      <div class="quiz-actions">
+        <button type="button" class="btn-submit-quiz" id="btn-next-q" onclick="submitChatQuestionAnswer()">
           ${qNum === total ? "Finish & Evaluate Loop" : "Next Question →"}
         </button>
       </div>
     </div>
   `;
 
-  // Render LaTeX math via KaTeX if available
-  if (window.renderMathInElement) {
-    window.renderMathInElement(container, {
-      delimiters: [
-        {left: '$$', right: '$$', display: true},
-        {left: '$', right: '$', display: false}
-      ]
-    });
-  }
-
-  // Refresh 3D card tilt & specular lighting physics
-  if (window.ThreeVisuals && window.ThreeVisuals.refresh3DTilt) {
-    window.ThreeVisuals.refresh3DTilt();
-  }
+  appendMessage("ai", questionHtml);
 }
 
-function selectAnswerOption(idx, answerValue) {
+function selectChatOption(idx, answerValue) {
   state.currentSelection = answerValue;
-  document.querySelectorAll(".option-label").forEach((el, i) => {
-    el.classList.toggle("selected", i === idx);
+  document.querySelectorAll(".quiz-option-btn").forEach((btn, i) => {
+    btn.classList.toggle("selected", i === idx);
   });
 }
 
-function selectConfidenceRating(level, element) {
+function selectChatConfidence(level, element) {
   state.currentConfidence = level;
-  document.querySelectorAll(".confidence-pill").forEach(el => el.classList.remove("selected"));
+  document.querySelectorAll(".btn-conf").forEach(b => b.classList.remove("selected"));
   element.classList.add("selected");
 }
 
-async function submitCurrentQuestionAnswer() {
+async function submitChatQuestionAnswer() {
   if (!state.currentSelection) {
     alert("Please select an answer choice.");
     return;
   }
   if (!state.currentConfidence) {
-    // REQ_10, TC-49: submission blocked if confidence missing
-    alert("⚠️ Unselected Confidence Tag: You must choose High, Medium, or Low confidence before proceeding.");
+    alert("⚠️ Confidence tag required: Please select High, Medium, or Low confidence before proceeding.");
     return;
   }
 
-  // Save progress via API (TC-47)
+  // Freeze the current active question box
+  const activeBox = document.getElementById("active-quiz-box");
+  if (activeBox) {
+    activeBox.id = ""; // remove id so next question box becomes active
+    activeBox.querySelectorAll("button").forEach(b => b.disabled = true);
+  }
+
+  const selectedAnswer = state.currentSelection;
+  const conf = state.currentConfidence;
+
+  // Append user's choice message in the chat
+  appendMessage("user", `Selected: <strong>${escapeHtml(selectedAnswer)}</strong> [${conf} Confidence]`);
+
+  // Save progress via API
   const session = state.activeSession;
   try {
     await fetch(`/api/quiz/session/${session.session_id}/progress`, {
@@ -451,8 +394,8 @@ async function submitCurrentQuestionAnswer() {
       },
       body: JSON.stringify({
         question_index: state.currentQuestionIndex,
-        selected_answer: state.currentSelection,
-        confidence: state.currentConfidence
+        selected_answer: selectedAnswer,
+        confidence: conf
       })
     });
   } catch (e) {
@@ -461,17 +404,16 @@ async function submitCurrentQuestionAnswer() {
 
   state.submittedAnswers.push({
     question_index: state.currentQuestionIndex,
-    selected_answer: state.currentSelection,
-    confidence: state.currentConfidence
+    selected_answer: selectedAnswer,
+    confidence: conf
   });
 
   state.currentQuestionIndex++;
-  renderCurrentQuestion();
+  renderCurrentQuestionInChat();
 }
 
-async function renderLoopSubmissionSummary() {
-  const container = document.getElementById("active-question-container");
-  container.innerHTML = `<div class="alert-banner warning">⏳ Evaluating responses and grounding against source notes...</div>`;
+async function submitFullLoop() {
+  const evalLoading = appendMessage("ai", "⏳ Evaluating your loop responses against source notes and computing mastery score...");
 
   const session = state.activeSession;
   try {
@@ -485,75 +427,88 @@ async function renderLoopSubmissionSummary() {
     });
 
     const result = await res.json();
+    evalLoading.remove();
+
     if (!res.ok) {
-      container.innerHTML = `<div class="alert-banner danger">❌ Evaluation Error: ${result.error}</div>`;
+      appendMessage("ai", `❌ Evaluation Error: ${result.error}`);
       return;
     }
 
     const isMastered = result.is_mastered;
-
-    // Trigger dynamic 3D WebGL particle celebration or remediation pulse
-    if (isMastered) {
-      if (window.ThreeVisuals && window.ThreeVisuals.triggerMasteryExplosion) {
-        window.ThreeVisuals.triggerMasteryExplosion();
-      }
-    } else {
-      if (window.ThreeVisuals && window.ThreeVisuals.triggerRemediationPulse) {
-        window.ThreeVisuals.triggerRemediationPulse();
-      }
+    const headerStatus = document.getElementById("chat-header-status");
+    if (headerStatus) {
+      headerStatus.innerHTML = isMastered
+        ? `<span class="status-chip mastered">100% Mastered</span>`
+        : `<span class="status-chip remediation">Remediation Required (${result.score}%)</span>`;
     }
 
-    container.innerHTML = `
-      <div class="question-card">
-        <div class="${isMastered ? 'mastery-indicator-box' : 'remediation-indicator-box'}">
-          <h2 style="font-size:1.9rem; color:${isMastered ? 'var(--success-green)' : 'var(--warning-amber)'}; margin-bottom:0.5rem; font-weight:800;">
-            ${isMastered ? '🎉 100% Mastery Achieved!' : '⚠️ Remediation Required (Mastery Below 100%)'}
-          </h2>
-          <div class="metric-big" style="font-size:3.5rem;">${result.score}%</div>
-          <p class="metric-caption" style="max-width:650px; margin:0.5rem auto 0 auto;">
-            ${isMastered ?
-              'All concepts verified with High/Medium confidence. Next sequential module is now unlocked!' :
-              'Advancement requires a strict 100% score on the current loop iteration (BR-2). Review the verified feedback below and begin a newly framed question loop.'}
+    const summaryHtml = `
+      <div class="eval-box">
+        <div class="eval-banner ${isMastered ? 'success' : 'warning'}">
+          <div style="font-size:1.15rem; font-weight:600; margin-bottom:0.25rem;">
+            ${isMastered ? '🎉 100% Mastery Achieved!' : `⚠️ Loop Score: ${result.score}% (Remediation Required)`}
+          </div>
+          <p style="font-size:0.88rem; line-height:1.5;">
+            ${isMastered
+              ? 'All concepts verified with High/Medium confidence. Next sequential module is now unlocked!'
+              : 'Advancement requires a strict 100% score on the current loop iteration (BR-2). Review the verified feedback below and begin your next targeted question loop.'}
           </p>
         </div>
 
-        <h3 style="margin-bottom:1rem; border-bottom:1px solid var(--border-color); padding-bottom:0.5rem;">Verified Answer Analysis & Grounding:</h3>
-        <div style="display:flex; flex-direction:column; gap:1rem; margin-bottom:2rem;">
+        <div style="font-size:0.9rem; font-weight:600; margin-bottom:0.75rem;">Verified Concept Explanations:</div>
+        <div style="display:flex; flex-direction:column; gap:0.65rem; margin-bottom:1.25rem;">
           ${result.evaluations.map((ev, i) => `
-            <div style="background:var(--bg-secondary); padding:1.1rem; border-radius:var(--radius-md); border-left:4px solid ${ev.is_correct && !ev.is_unverified ? 'var(--success-green)' : (ev.is_unverified ? 'var(--warning-amber)' : 'var(--danger-red)')};">
-              <div><strong>Q${i+1}: ${escapeHtml(ev.question)}</strong></div>
-              <div style="margin:0.25rem 0; font-size:0.9rem;">Your Answer: <em>${escapeHtml(ev.selected)}</em> (${ev.confidence} Confidence)</div>
-              <div style="color:var(--text-muted); font-size:0.85rem;">${escapeHtml(ev.feedback)}</div>
+            <div style="background:#18191a; padding:0.85rem 1rem; border-radius:4px; border-left:3px solid ${ev.is_correct && !ev.is_unverified ? 'var(--success-green)' : (ev.is_unverified ? 'var(--warning-amber)' : 'var(--danger-red)')};">
+              <div style="font-weight:500; font-size:0.9rem; margin-bottom:0.25rem;">Q${i+1}: ${escapeHtml(ev.question)}</div>
+              <div style="font-size:0.82rem; color:var(--text-dim);">Your answer: <span style="color:var(--text-main); font-weight:500;">${escapeHtml(ev.selected)}</span> (${ev.confidence} Confidence)</div>
+              <div style="font-size:0.82rem; color:var(--text-muted); margin-top:0.25rem; line-height:1.4;">${escapeHtml(ev.feedback)}</div>
             </div>
           `).join("")}
         </div>
 
-        <div style="display:flex; justify-content:space-between;">
-          <button class="btn-secondary" onclick="closePracticeSession()">Back to Topics</button>
-          ${isMastered ?
-            `<button class="btn-primary" onclick="switchTab('analytics')">View Updated Analytics</button>` :
-            `<button class="btn-primary" onclick="launchQuizSession('${result.topic_id}')">🔄 Begin New Remediation Loop</button>`
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <button class="btn-secondary" onclick="startNewChat()">Start Different Topic</button>
+          ${isMastered
+            ? `<button class="btn-submit-quiz" onclick="switchView('dashboard')">View Updated Analytics 📊</button>`
+            : `<button class="btn-submit-quiz" onclick="launchQuizSession('${result.topic_id}')">Begin New Remediation Loop 🔄</button>`
           }
         </div>
       </div>
     `;
 
-    if (window.renderMathInElement) {
-      window.renderMathInElement(container, {
-        delimiters: [{left: '$$', right: '$$', display: true}, {left: '$', right: '$', display: false}]
-      });
+    appendMessage("ai", summaryHtml);
+  } catch (err) {
+    evalLoading.querySelector(".msg-content").innerHTML = `❌ Evaluation Error: ${escapeHtml(err.message)}`;
+  }
+}
+
+async function launchQuizSession(topicId) {
+  appendMessage("ai", `🔄 Preparing newly framed questions for your remediation loop...`);
+
+  try {
+    const res = await fetch("/api/quiz/session/start", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-User-ID": state.currentUser.userId
+      },
+      body: JSON.stringify({ topic_id: topicId, num_questions: 3 })
+    });
+
+    const data = await res.json();
+    if (!res.ok) {
+      appendMessage("ai", `❌ Cannot start session: ${data.error}`);
+      return;
     }
 
-    if (window.ThreeVisuals && window.ThreeVisuals.refresh3DTilt) {
-      window.ThreeVisuals.refresh3DTilt();
-    }
-  } catch (err) {
-    container.innerHTML = `<div class="alert-banner danger">❌ Evaluation Error: ${err.message}</div>`;
+    initQuizSession(data);
+  } catch (e) {
+    appendMessage("ai", `❌ Session launch error: ${e.message}`);
   }
 }
 
 function promptEarlyExit() {
-  const conf = confirm("Warning: Current topic mastery is incomplete and progress on this loop will be saved as 'In Progress'. Are you sure you want to exit?");
+  const conf = confirm("Topic mastery is not yet complete. Current loop progress will be saved as 'In Progress'. Are you sure you want to exit?");
   if (conf) {
     if (state.activeSession) {
       fetch(`/api/quiz/session/${state.activeSession.session_id}/exit`, {
@@ -561,54 +516,70 @@ function promptEarlyExit() {
         headers: { "X-User-ID": state.currentUser.userId }
       });
     }
-    closePracticeSession();
+    startNewChat();
   }
 }
 
-function closePracticeSession() {
-  state.activeSession = null;
-  const arena = document.getElementById("practice-arena");
-  const setupPanel = document.getElementById("quizzer-setup-panel");
-  if (arena) arena.style.display = "none";
-  if (setupPanel) setupPanel.style.display = "block";
-}
+// --- Recent Materials Sidebar List ---
+async function loadRecentMaterials() {
+  const list = document.getElementById("sidebar-recent-list");
+  if (!list) return;
 
-// --- Spaced Repetition Micro-Verification (UC-5, TC-59 to TC-61) ---
-async function startDecayMicroVerification(topicId) {
   try {
-    const res = await fetch("/api/quiz/micro-verification/start", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "X-User-ID": state.currentUser.userId },
-      body: JSON.stringify({ topic_id: topicId })
+    const res = await fetch("/api/documents", {
+      headers: { "X-User-ID": state.currentUser.userId }
     });
     const data = await res.json();
-    if (!res.ok) {
-      alert(data.error);
+    const docs = data.documents || [];
+
+    if (docs.length === 0) {
+      list.innerHTML = `<li style="padding:0.4rem 0.75rem; font-size:0.78rem; color:var(--text-dim);">No materials uploaded yet</li>`;
       return;
     }
 
-    // Modal or Practice runner for 2 questions
-    switchTab("practice");
-    state.activeSession = {
-      session_id: `micro_${topicId}`,
-      topic_id: topicId,
-      questions: data.questions,
-      is_micro: true
-    };
-    state.currentQuestionIndex = 0;
-    state.submittedAnswers = [];
-    document.getElementById("practice-list-area").style.display = "none";
-    document.getElementById("practice-arena").style.display = "block";
-    renderCurrentQuestion();
+    list.innerHTML = docs.slice(0, 8).map(d => `
+      <li class="sidebar-link" title="${escapeHtml(d.title)}" onclick="practiceRecentDoc('${d.doc_id}', '${escapeForJs(d.title)}')">
+        <span>📄</span>
+        <span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHtml(d.title)}</span>
+      </li>
+    `).join("");
   } catch (e) {
-    alert("Micro verification error: " + e.message);
+    console.warn("Could not load recent docs:", e);
   }
 }
 
-// --- Analytics & Heatmap Dashboard (UC-3, REQ_16, REQ_17, BR-4, TC-63 to TC-67) ---
+async function practiceRecentDoc(docId, title) {
+  switchView("chat");
+  appendMessage("user", `Start practice on recent document: <strong>${escapeHtml(title)}</strong>`);
+  const loading = appendMessage("ai", `⏳ Fetching curriculum modules for <strong>${escapeHtml(title)}</strong>...`);
+
+  try {
+    const res = await fetch("/api/quiz/topics", {
+      headers: { "X-User-ID": state.currentUser.userId }
+    });
+    const data = await res.json();
+    const docTopics = (data.topics || []).filter(t => t.doc_id === docId);
+
+    loading.remove();
+    if (docTopics.length === 0) {
+      appendMessage("ai", `No topics found for this document.`);
+      return;
+    }
+
+    // Launch first unlocked topic
+    const targetTopic = docTopics.find(t => t.is_unlocked) || docTopics[0];
+    launchQuizSession(targetTopic.topic_id);
+  } catch (e) {
+    loading.querySelector(".msg-content").innerHTML = `❌ Error: ${e.message}`;
+  }
+}
+
+// --- Analytics & Dashboard View ---
 async function loadDashboardAnalytics() {
   const container = document.getElementById("analytics-view-container");
   if (!container) return;
+
+  container.innerHTML = `<div style="color:var(--text-dim); padding:1rem;">Loading performance metrics...</div>`;
 
   try {
     const res = await fetch("/api/analytics/dashboard", {
@@ -617,120 +588,59 @@ async function loadDashboardAnalytics() {
     const data = await res.json();
 
     if (!res.ok) {
-      container.innerHTML = `<div class="alert-banner danger">${data.error}</div>`;
+      container.innerHTML = `<div class="eval-banner warning">${data.error}</div>`;
       return;
     }
 
-    // 1. Welcome State for 0 attempts (Exception 3.0.E.1 / TC-66)
     if (data.welcome_state) {
       container.innerHTML = `
-        <div class="alert-banner warning">
-          <div>
-            <strong>👋 ${data.message}</strong>
-            <p style="margin-top:0.5rem;"><button class="btn-primary" onclick="switchTab('ingest')">Upload Study Materials</button></p>
-          </div>
+        <div class="panel-card">
+          <p style="font-weight:500;">👋 ${data.message}</p>
+          <button class="btn-submit-quiz" style="margin-top:1rem;" onclick="startNewChat()">Start Your First Practice Session</button>
         </div>
       `;
       return;
     }
 
-    // 2. Decaying Review Alerts (TC-68)
-    let decayAlertHtml = "";
-    if (data.decay_alerts && data.decay_alerts.length > 0) {
-      decayAlertHtml = `
-        <div class="alert-banner danger" style="margin-bottom:1.5rem;">
-          <div>
-            <strong>🔔 Spaced Repetition Retention Due!</strong>
-            <p>Ebbinghaus memory curve indicates review required for: <strong>${data.decay_alerts.map(a => a.name).join(", ")}</strong></p>
-          </div>
-          <button class="btn-danger" onclick="startDecayMicroVerification('${data.decay_alerts[0].topic_id}')">Take 2-Q Verification</button>
-        </div>
-      `;
-    }
-
-    // 3. Render Dashboard with First-Try vs Looped Distinction (BR-4, REQ_17, TC-64)
     container.innerHTML = `
-      ${decayAlertHtml}
-      <div class="card-grid">
-        <div class="ui-card">
-          <div class="ui-card-title">Overall Exam Readiness</div>
-          <div class="metric-big">${data.readiness_percentage}%</div>
-          <div class="metric-caption">${data.mastered_topics} of ${data.total_topics} topics reached 100% mastery</div>
+      <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:1rem; margin-bottom:1.5rem;">
+        <div class="panel-card">
+          <div style="font-size:0.8rem; color:var(--text-dim);">OVERALL READINESS</div>
+          <div style="font-size:2rem; font-weight:600; color:var(--google-blue); margin:0.25rem 0;">${data.readiness_percentage}%</div>
+          <div style="font-size:0.8rem; color:var(--text-muted);">${data.mastered_topics} of ${data.total_topics} topics mastered</div>
         </div>
-        <div class="ui-card">
-          <div class="ui-card-title">First-Attempt Success (BR-4)</div>
-          <div class="metric-big" style="color:var(--accent-indigo);">${data.first_attempt_metrics.success_rate_percent}%</div>
-          <div class="metric-caption">Passed on first attempt: ${data.first_attempt_metrics.passed} / ${data.first_attempt_metrics.total}</div>
+        <div class="panel-card">
+          <div style="font-size:0.8rem; color:var(--text-dim);">FIRST-ATTEMPT SUCCESS (BR-4)</div>
+          <div style="font-size:2rem; font-weight:600; color:var(--text-main); margin:0.25rem 0;">${data.first_try_mastery_percentage}%</div>
+          <div style="font-size:0.8rem; color:var(--text-muted);">Looped Mastery: ${data.looped_mastery_percentage}%</div>
         </div>
-        <div class="ui-card">
-          <div class="ui-card-title">Remediated / Looped Mastery (BR-4)</div>
-          <div class="metric-big" style="color:var(--accent-purple);">${data.looped_mastery_metrics.success_rate_percent}%</div>
-          <div class="metric-caption">Mastered after remediation loops: ${data.looped_mastery_metrics.passed} / ${data.looped_mastery_metrics.total}</div>
+        <div class="panel-card">
+          <div style="font-size:0.8rem; color:var(--text-dim);">AUDIT LATENCY (PERF-3)</div>
+          <div style="font-size:2rem; font-weight:600; color:var(--success-green); margin:0.25rem 0;">${data.render_time_ms} ms</div>
+          <div style="font-size:0.8rem; color:var(--text-muted);">Sub-second target verified</div>
         </div>
       </div>
 
-      <!-- Weakness Heatmap (UC-3, REQ_16, TC-63, TC-67) -->
-      <div class="ui-card" style="margin-bottom:2rem;">
-        <div class="ui-card-header">
-          <div class="ui-card-title">🔥 Concept Weakness Heatmap</div>
-          <span class="metric-caption">Color coded by failure rate and unverified lucky guesses</span>
-        </div>
-        <div class="heatmap-grid">
-          ${data.heatmap_data.map(tile => `
-            <div class="heatmap-tile" style="border-top-color: ${tile.color_hex};">
-              <div class="heatmap-tile-name">${tile.topic_name}</div>
-              <div style="margin: 0.5rem 0;">
-                <span class="status-badge" style="background-color:rgba(255,255,255,0.08); color:${tile.color_hex};">
-                  ${tile.weakness_level}
-                </span>
-              </div>
-              <div class="heatmap-tile-stat">Avg Score: ${tile.average_score}%</div>
-              <div class="heatmap-tile-stat">Failures: ${tile.failure_count} | Unverified: ${tile.unverified_guesses}</div>
+      <div class="panel-card">
+        <h3 style="font-size:1rem; font-weight:500; margin-bottom:1rem;">Weakness Heatmap & Mastery Breakdown</h3>
+        <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(200px, 1fr)); gap:0.75rem;">
+          ${data.heatmap_tiles.map(tile => `
+            <div style="background:#18191a; padding:1rem; border-radius:4px; border-top:3px solid ${tile.color_hex};">
+              <div style="font-weight:500; font-size:0.92rem; margin-bottom:0.25rem;">${escapeHtml(tile.topic_name)}</div>
+              <div style="font-size:0.78rem; color:${tile.color_hex}; font-weight:600; margin-bottom:0.4rem;">${tile.weakness_level}</div>
+              <div style="font-size:0.78rem; color:var(--text-dim);">Avg Score: ${tile.average_score}%</div>
+              <div style="font-size:0.78rem; color:var(--text-dim);">Failures: ${tile.failure_count} | Unverified: ${tile.unverified_guesses}</div>
             </div>
           `).join("")}
         </div>
       </div>
-
-      <!-- Attempt History (TC-65) -->
-      <div class="ui-card">
-        <div class="ui-card-header">
-          <div class="ui-card-title">📜 Attempt History & Score Trends</div>
-          <span class="metric-caption">Rendered in ${data.render_time_ms} ms (PERF-3)</span>
-        </div>
-        <div style="overflow-x:auto;">
-          <table style="width:100%; border-collapse:collapse; text-align:left; font-size:0.9rem;">
-            <thead>
-              <tr style="border-bottom:1px solid var(--border-color); color:var(--text-muted);">
-                <th style="padding:0.6rem;">Topic</th>
-                <th style="padding:0.6rem;">Score</th>
-                <th style="padding:0.6rem;">Confidence</th>
-                <th style="padding:0.6rem;">Attempt Type</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${data.retry_history.map(att => `
-                <tr style="border-bottom:1px solid rgba(255,255,255,0.05);">
-                  <td style="padding:0.6rem;">${att.topic_name}</td>
-                  <td style="padding:0.6rem; font-weight:700; color:${att.score >= 100 ? 'var(--success-green)' : 'var(--warning-amber)'}">${att.score}%</td>
-                  <td style="padding:0.6rem;">${att.confidence}</td>
-                  <td style="padding:0.6rem;">${att.is_first_attempt ? '<span class="status-badge in-progress">First-Try</span>' : '<span class="status-badge unmastered">Looped</span>'}</td>
-                </tr>
-              `).join("")}
-            </tbody>
-          </table>
-        </div>
-      </div>
     `;
-
-    if (window.ThreeVisuals && window.ThreeVisuals.refresh3DTilt) {
-      window.ThreeVisuals.refresh3DTilt();
-    }
   } catch (err) {
-    container.innerHTML = `<p class="metric-caption text-danger">Failed to load analytics: ${err.message}</p>`;
+    container.innerHTML = `<div style="color:var(--danger-red);">Failed to load analytics: ${err.message}</div>`;
   }
 }
 
-// --- Admin Portal (UC-10, UC-11, TC-74 to TC-77) ---
+// --- Admin Portal View ---
 async function loadAdminTaxonomy() {
   const container = document.getElementById("admin-taxonomy-container");
   if (!container) return;
@@ -741,129 +651,144 @@ async function loadAdminTaxonomy() {
     });
     const data = await res.json();
     if (!res.ok) {
-      container.innerHTML = `<div class="alert-banner danger">Access Denied: Admin authorization required.</div>`;
+      container.innerHTML = `<div style="color:var(--danger-red);">Access Denied: Admin authorization required.</div>`;
       return;
     }
 
     container.innerHTML = `
-      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
-        <h3>Syllabus Taxonomy Topics</h3>
-        <button class="btn-primary" onclick="promptAddTaxonomy()">+ Add Topic</button>
-      </div>
-      <div class="topic-list-group">
-        ${data.taxonomy.map(item => `
-          <div class="topic-row">
+      <div style="display:flex; flex-direction:column; gap:0.5rem;">
+        ${(data.taxonomy || []).map(t => `
+          <div style="background:#18191a; padding:0.75rem 1rem; border-radius:4px; display:flex; justify-content:space-between; align-items:center;">
             <div>
-              <strong>${item.topic_name}</strong>
-              <div class="metric-caption">${item.description || "No description"}</div>
+              <strong>${escapeHtml(t.topic_name)}</strong>
+              <div style="font-size:0.8rem; color:var(--text-dim);">${escapeHtml(t.description || "Core syllabus")}</div>
             </div>
-            <div style="display:flex; gap:0.5rem;">
-              <button class="btn-secondary" onclick="promptEditTaxonomy(${item.id}, '${escapeForJs(item.topic_name)}')">Edit</button>
-              <button class="btn-danger" onclick="deleteTaxonomy(${item.id})">Delete</button>
-            </div>
+            <button class="btn-secondary" style="padding:0.25rem 0.5rem; font-size:0.75rem;" onclick="adminDeleteTopic(${t.id})">Delete</button>
           </div>
         `).join("")}
       </div>
     `;
-  } catch (e) {
-    container.innerHTML = `<p class="metric-caption text-danger">Admin error: ${e.message}</p>`;
+  } catch (err) {
+    container.innerHTML = `<div style="color:var(--danger-red);">Failed to load taxonomy: ${err.message}</div>`;
   }
-}
-
-async function promptAddTaxonomy() {
-  const name = prompt("Enter syllabus topic name:");
-  if (!name) return;
-  const desc = prompt("Enter topic description (optional):") || "";
-  await fetch("/api/admin/taxonomy", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "X-User-Role": state.currentUser.role, "X-User-ID": state.currentUser.userId },
-    body: JSON.stringify({ topic_name: name, description: desc })
-  });
-  loadAdminTaxonomy();
-}
-
-async function promptEditTaxonomy(id, currentName) {
-  const name = prompt("Update topic name:", currentName);
-  if (!name) return;
-  await fetch(`/api/admin/taxonomy/${id}`, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json", "X-User-Role": state.currentUser.role, "X-User-ID": state.currentUser.userId },
-    body: JSON.stringify({ topic_name: name })
-  });
-  loadAdminTaxonomy();
-}
-
-async function deleteTaxonomy(id) {
-  if (!confirm("Are you sure you want to delete this taxonomy node?")) return;
-  await fetch(`/api/admin/taxonomy/${id}`, {
-    method: "DELETE",
-    headers: { "X-User-Role": state.currentUser.role, "X-User-ID": state.currentUser.userId }
-  });
-  loadAdminTaxonomy();
 }
 
 async function adminWipeVectors() {
-  const docId = prompt("Enter Document ID to wipe vector collection (UC-11):");
+  const docId = prompt("Enter Document ID to purge vectors from Chroma DB:");
   if (!docId) return;
-  const targetUser = prompt("Enter Student User ID:", state.currentUser.userId) || state.currentUser.userId;
-
-  const res = await fetch("/api/admin/wipe-vectors", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "X-User-Role": state.currentUser.role, "X-User-ID": state.currentUser.userId },
-    body: JSON.stringify({ user_id: targetUser, doc_id: docId })
-  });
-  const data = await res.json();
-  if (res.ok) {
-    alert(`Success: Wiped ${data.vectors_wiped} vectors for document '${docId}'.`);
-  } else {
-    alert(`Error: ${data.error}`);
-  }
+  try {
+    const res = await fetch(`/api/admin/vectors/wipe/${encodeURIComponent(docId)}`, {
+      method: "DELETE",
+      headers: { "X-User-Role": state.currentUser.role, "X-User-ID": state.currentUser.userId }
+    });
+    const d = await res.json();
+    alert(d.message || d.error);
+    loadRecentMaterials();
+  } catch (e) { alert(e.message); }
 }
 
 async function adminResetStudent() {
-  const studentId = prompt("Enter Student User ID to reset performance history (UC-11):", "24CSB1A12");
-  if (!studentId) return;
-
-  const res = await fetch("/api/admin/reset-student", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "X-User-Role": state.currentUser.role, "X-User-ID": state.currentUser.userId },
-    body: JSON.stringify({ student_user_id: studentId })
-  });
-  const data = await res.json();
-  if (res.ok) {
-    alert(data.message);
-    if (state.currentUser.userId === studentId) {
-      loadDashboardAnalytics();
-    }
-  } else {
-    alert(`Error: ${data.error}`);
-  }
+  const targetUser = prompt("Enter Student ID to reset (e.g. 24CSB1A12):", state.currentUser.userId);
+  if (!targetUser) return;
+  try {
+    const res = await fetch(`/api/admin/student/reset/${encodeURIComponent(targetUser)}`, {
+      method: "POST",
+      headers: { "X-User-Role": state.currentUser.role, "X-User-ID": state.currentUser.userId }
+    });
+    const d = await res.json();
+    alert(d.message || d.error);
+    loadDashboardAnalytics();
+  } catch (e) { alert(e.message); }
 }
 
-// --- User Switcher Modal (Student A, Student B, Admin) ---
-function openAuthModal() {
-  const modal = document.getElementById("auth-modal");
+async function adminDeleteTopic(topicId) {
+  if (!confirm("Are you sure you want to delete this topic?")) return;
+  try {
+    await fetch(`/api/admin/taxonomy/${topicId}`, {
+      method: "DELETE",
+      headers: { "X-User-Role": state.currentUser.role, "X-User-ID": state.currentUser.userId }
+    });
+    loadAdminTaxonomy();
+  } catch (e) { alert(e.message); }
+}
+
+// --- Duplicate Resolution Modal ---
+function showDuplicateModal(message) {
+  const modal = document.getElementById("duplicate-modal");
+  document.getElementById("duplicate-modal-msg").innerText = message;
   modal.style.display = "flex";
+}
+
+function closeDuplicateModal() {
+  document.getElementById("duplicate-modal").style.display = "none";
+  state.pendingDuplicateFile = null;
+}
+
+function resolveDuplicate(choice) {
+  const file = state.pendingDuplicateFile;
+  closeDuplicateModal();
+  if (!file) return;
+
+  const overwrite = (choice === "overwrite");
+  const createNewVersion = (choice === "version");
+
+  const formData = new FormData();
+  formData.append("file", file);
+  if (overwrite) formData.append("overwrite", "true");
+  if (createNewVersion) formData.append("create_new_version", "true");
+
+  appendMessage("ai", `Processing '${file.name}' with choice: ${choice}...`);
+
+  fetch("/api/quiz/quick-start", {
+    method: "POST",
+    headers: { "X-User-ID": state.currentUser.userId },
+    body: formData
+  })
+  .then(res => res.json())
+  .then(data => {
+    if (data.error) {
+      appendMessage("ai", `❌ Error: ${data.error}`);
+    } else {
+      initQuizSession(data);
+    }
+  })
+  .catch(err => {
+    appendMessage("ai", `❌ Ingestion Error: ${err.message}`);
+  });
+}
+
+// --- User Account Switcher ---
+function openAuthModal() {
+  document.getElementById("auth-modal").style.display = "flex";
 }
 
 function closeAuthModal() {
   document.getElementById("auth-modal").style.display = "none";
 }
 
-async function switchUserAccount(userId, password, role) {
-  const res = await fetch("/api/auth/login", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ user_id: userId, password: password })
-  });
-  const data = await res.json();
-  if (res.ok) {
-    state.currentUser = { userId: data.user.user_id, name: data.user.name, role: data.user.role };
-    closeAuthModal();
-    updateUserBadge();
-    switchTab("dashboard");
-  } else {
-    alert(`Login failed: ${data.error}`);
+async function switchUserAccount(username, password, role) {
+  try {
+    const res = await fetch("/api/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username, password })
+    });
+    const data = await res.json();
+    if (res.ok) {
+      state.currentUser = {
+        userId: data.user.user_id,
+        name: data.user.name,
+        role: data.user.role
+      };
+      closeAuthModal();
+      updateUserProfileDisplay();
+      startNewChat();
+      loadRecentMaterials();
+    } else {
+      alert(`Login failed: ${data.error}`);
+    }
+  } catch (e) {
+    alert(`Login error: ${e.message}`);
   }
 }
 
@@ -878,8 +803,11 @@ function escapeHtml(text) {
     .replace(/'/g, "&#039;");
 }
 
-function escapeForJs(str) {
-  if (!str) return "";
-  return String(str).replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+function escapeForJs(text) {
+  if (!text) return "";
+  return String(text)
+    .replace(/\\/g, "\\\\")
+    .replace(/'/g, "\\'")
+    .replace(/"/g, '\\"')
+    .replace(/\n/g, "\\n");
 }
-

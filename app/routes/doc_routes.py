@@ -23,8 +23,10 @@ def upload_document():
     overwrite = request.form.get("overwrite", "false").lower() == "true"
     create_new_version = request.form.get("create_new_version", "false").lower() == "true"
 
-    # Support multiple files: files[] or multiple file fields
-    uploaded_files = request.files.getlist("files") or request.files.getlist("file")
+    # Support multiple files across any field names: files, file, files[], etc.
+    uploaded_files = []
+    for k in request.files:
+        uploaded_files.extend(request.files.getlist(k))
     
     if uploaded_files:
         results = []
@@ -71,7 +73,7 @@ def upload_document():
             return jsonify({"error": "No valid files could be processed."}), 400
 
     # Fallback to json payload (used in tests and API calls)
-    json_data = request.get_json() or {}
+    json_data = request.get_json(silent=True) or {}
     filename = json_data.get("filename", "")
     content = json_data.get("content", "")
     file_bytes = content.encode("utf-8") if isinstance(content, str) else b""

@@ -22,9 +22,13 @@ def quick_start():
     topic_name = "Core Study Material"
     
     try:
-        # 1. Check if uploading a file
-        if "file" in request.files:
-            file = request.files["file"]
+        # 1. Check if uploading a file (support any field name: file, files, files[], etc.)
+        uploaded_files = []
+        for k in request.files:
+            uploaded_files.extend(request.files.getlist(k))
+
+        if uploaded_files:
+            file = uploaded_files[0]
             if file and file.filename:
                 file_bytes = file.read()
                 res = DocumentService.ingest_document(
@@ -127,7 +131,7 @@ def start_session():
     if not user_id:
         return jsonify({"error": "Authentication required."}), 401
 
-    data = request.get_json() or {}
+    data = request.get_json(silent=True) or {}
     topic_id = data.get("topic_id")
     num_questions = int(data.get("num_questions", 3))
 
@@ -162,7 +166,7 @@ def save_progress(session_id: str):
     if not user_id:
         return jsonify({"error": "Authentication required."}), 401
 
-    data = request.get_json() or {}
+    data = request.get_json(silent=True) or {}
     q_index = data.get("question_index")
     user_answer = data.get("selected_answer")
     conf = data.get("confidence")
@@ -202,7 +206,7 @@ def submit_session(session_id: str):
     if not user_id:
         return jsonify({"error": "Authentication required."}), 401
 
-    data = request.get_json() or {}
+    data = request.get_json(silent=True) or {}
     answers = data.get("answers", [])
 
     if not answers:
@@ -227,7 +231,7 @@ def start_micro_verification():
     if not user_id:
         return jsonify({"error": "Authentication required."}), 401
 
-    data = request.get_json() or {}
+    data = request.get_json(silent=True) or {}
     topic_id = data.get("topic_id")
     if not topic_id:
         return jsonify({"error": "topic_id is required."}), 400
@@ -248,7 +252,7 @@ def submit_micro_verification():
     if not user_id:
         return jsonify({"error": "Authentication required."}), 401
 
-    data = request.get_json() or {}
+    data = request.get_json(silent=True) or {}
     topic_id = data.get("topic_id")
     answers = data.get("answers", [])
     questions = data.get("questions", [])

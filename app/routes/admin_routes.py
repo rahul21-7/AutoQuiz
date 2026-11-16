@@ -24,7 +24,7 @@ def get_taxonomy():
 @admin_bp.route("/taxonomy", methods=["POST"])
 def add_taxonomy():
     """Adds a new curriculum syllabus topic (UC-10, TC-74)."""
-    data = request.get_json() or {}
+    data = request.get_json(silent=True) or {}
     name = data.get("topic_name")
     desc = data.get("description", "")
     order = int(data.get("order_index", 0))
@@ -41,7 +41,7 @@ def add_taxonomy():
 @admin_bp.route("/taxonomy/<int:topic_id>", methods=["PUT"])
 def update_taxonomy(topic_id: int):
     """Updates a syllabus taxonomy node (UC-10, TC-74)."""
-    data = request.get_json() or {}
+    data = request.get_json(silent=True) or {}
     name = data.get("topic_name", "")
     desc = data.get("description", "")
     order = int(data.get("order_index", 0))
@@ -63,7 +63,7 @@ def delete_taxonomy(topic_id: int):
 def wipe_vectors():
     """Wipes vector store collection for a document (UC-11, TC-75, TC-77)."""
     _, admin_id = check_admin_access()
-    data = request.get_json() or {}
+    data = request.get_json(silent=True) or {}
     target_user = data.get("user_id")
     doc_id = data.get("doc_id")
 
@@ -83,7 +83,7 @@ def wipe_vectors():
 def reset_student():
     """Resets performance history and test logs for a student (UC-11, TC-76)."""
     _, admin_id = check_admin_access()
-    data = request.get_json() or {}
+    data = request.get_json(silent=True) or {}
     student_id = data.get("student_user_id")
 
     if not student_id:
