@@ -289,6 +289,7 @@ class RemediationEngine:
                     mastery_credit = True
                     feedback = f"Correct! {q.get('explanation', '')}"
             else:
+                unverified_concepts.append(q.get("concept", q["question"][:40]))
                 feedback = f"Incorrect. Grounded Feedback: {q.get('explanation', '')}. The correct answer was '{q['answer']}'."
 
             evaluated_details.append({

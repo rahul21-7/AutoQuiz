@@ -82,7 +82,32 @@ function updateUserBadge() {
   }
 }
 
-// --- Document Ingestion (REQ_01 to REQ_05, TC-07 to TC-16) ---
+// --- 1-Click Quick Start & Sample Loader ---
+async function quickStartSample(sampleType) {
+  const status = document.getElementById("upload-status");
+  status.innerHTML = `<div class="alert-banner warning">⏳ Extracting concepts from sample notes and synthesizing targeted questions...</div>`;
+
+  try {
+    const res = await fetch("/api/quiz/quick-start", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-User-ID": state.currentUser.userId
+      },
+      body: JSON.stringify({ sample: sampleType })
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      status.innerHTML = `<div class="alert-banner danger">❌ Error: ${data.error}</div>`;
+      return;
+    }
+    status.innerHTML = "";
+    startActiveQuiz(data);
+  } catch (e) {
+    status.innerHTML = `<div class="alert-banner danger">❌ Network error: ${e.message}</div>`;
+  }
+}
+
 function setupUploadDropzone() {
   const dropzone = document.getElementById("upload-dropzone");
   const fileInput = document.getElementById("file-input");
@@ -110,9 +135,10 @@ function setupUploadDropzone() {
   });
 }
 
-async function handleFileUpload(file, overwrite = false, createNewVersion = false) {
+// Handle file upload with direct 1-step quiz launch
+async function handleFileUpload(file, overwrite = true, createNewVersion = false) {
   const statusBanner = document.getElementById("upload-status");
-  statusBanner.innerHTML = `<div class="alert-banner warning">⏳ Vectorizing and parsing '${file.name}' via local AST engine...</div>`;
+  statusBanner.innerHTML = `<div class="alert-banner warning">⏳ Parsing '${file.name}', extracting AST code/LaTeX, and generating quiz...</div>`;
 
   const formData = new FormData();
   formData.append("file", file);
@@ -120,7 +146,7 @@ async function handleFileUpload(file, overwrite = false, createNewVersion = fals
   if (createNewVersion) formData.append("create_new_version", "true");
 
   try {
-    const res = await fetch("/api/documents/upload", {
+    const res = await fetch("/api/quiz/quick-start", {
       method: "POST",
       headers: { "X-User-ID": state.currentUser.userId },
       body: formData
@@ -129,7 +155,6 @@ async function handleFileUpload(file, overwrite = false, createNewVersion = fals
     const data = await res.json();
 
     if (res.status === 200 && data.status === "duplicate_prompt") {
-      // Show duplicate resolution prompt (REQ_05, TC-13 to TC-16)
       state.pendingDuplicateFile = file;
       showDuplicateModal(data.message);
       statusBanner.innerHTML = "";
@@ -141,19 +166,27 @@ async function handleFileUpload(file, overwrite = false, createNewVersion = fals
       return;
     }
 
-    statusBanner.innerHTML = `
-      <div class="alert-banner success">
-        <div>
-          <strong>✅ Document Vectorized Successfully!</strong>
-          <p>Title: <em>${data.title}</em> | Chunks: ${data.chunk_count} | Processing Time: ${data.processing_time_seconds}s</p>
-          <p>Discovered Sub-Topics: ${data.topics.join(", ")}</p>
-        </div>
-      </div>
-    `;
-    loadDocumentList();
+    statusBanner.innerHTML = "";
+    startActiveQuiz(data);
   } catch (err) {
-    statusBanner.innerHTML = `<div class="alert-banner danger">❌ Network or Engine Error: ${err.message}</div>`;
+    statusBanner.innerHTML = `<div class="alert-banner danger">❌ Ingestion Error: ${err.message}</div>`;
   }
+}
+
+function startActiveQuiz(sessionData) {
+  state.activeSession = sessionData;
+  state.currentQuestionIndex = sessionData.current_index || 0;
+  state.submittedAnswers = sessionData.saved_answers || [];
+  state.currentSelection = null;
+  state.currentConfidence = null;
+
+  const setupPanel = document.getElementById("quizzer-setup-panel");
+  const arena = document.getElementById("practice-arena");
+
+  if (setupPanel) setupPanel.style.display = "none";
+  if (arena) arena.style.display = "block";
+
+  renderCurrentQuestion();
 }
 
 function showDuplicateModal(message) {
@@ -262,6 +295,7 @@ function viewDocumentTopics(docId) {
 
 async function launchQuizSession(topicId) {
   const arena = document.getElementById("practice-arena");
+  const setupPanel = document.getElementById("quizzer-setup-panel");
   const listArea = document.getElementById("practice-list-area");
 
   try {
@@ -286,8 +320,9 @@ async function launchQuizSession(topicId) {
     state.currentSelection = null;
     state.currentConfidence = null;
 
-    listArea.style.display = "none";
-    arena.style.display = "block";
+    if (setupPanel) setupPanel.style.display = "none";
+    if (listArea) listArea.style.display = "none";
+    if (arena) arena.style.display = "block";
     renderCurrentQuestion();
   } catch (e) {
     alert(`Session launch failed: ${e.message}`);
@@ -495,9 +530,10 @@ function promptEarlyExit() {
 
 function closePracticeSession() {
   state.activeSession = null;
-  document.getElementById("practice-arena").style.display = "none";
-  document.getElementById("practice-list-area").style.display = "block";
-  loadTopicsForPractice();
+  const arena = document.getElementById("practice-arena");
+  const setupPanel = document.getElementById("quizzer-setup-panel");
+  if (arena) arena.style.display = "none";
+  if (setupPanel) setupPanel.style.display = "block";
 }
 
 // --- Spaced Repetition Micro-Verification (UC-5, TC-59 to TC-61) ---

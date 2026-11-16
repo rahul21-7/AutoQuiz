@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>AutoQuiz - Smart Exam Quizzer System Using RAG</title>
+  <title>AutoQuiz - Smart Adaptive Exam Quizzer</title>
   <!-- KaTeX for High-Fidelity Mathematical Equation Rendering (UC-6, TC-23) -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css">
   <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.js"></script>
@@ -19,18 +19,16 @@
       <div class="logo-badge">AQ</div>
       <div>
         <div class="brand-title">AutoQuiz</div>
-        <div class="brand-subtitle">Smart Exam Quizzer System • NIT Warangal</div>
+        <div class="brand-subtitle">Smart Adaptive Exam Quizzer • NIT Warangal</div>
       </div>
     </div>
 
     <!-- Navigation Bar -->
     <nav class="main-nav">
-      <button class="nav-btn active" data-target="dashboard">Dashboard</button>
-      <button class="nav-btn" data-target="ingest">Ingestion</button>
-      <button class="nav-btn" data-target="practice">Practice Loop</button>
-      <button class="nav-btn" data-target="analytics">Analytics & Heatmap</button>
-      <button class="nav-btn" data-target="admin">Admin Portal</button>
-      <button class="nav-btn" data-target="manual">User Manual</button>
+      <button class="nav-btn active" data-target="practice">⚡ Live Quizzer Demo</button>
+      <button class="nav-btn" data-target="dashboard">📊 Progress & Heatmap</button>
+      <button class="nav-btn" data-target="admin">🛡️ Admin & Syllabus</button>
+      <button class="nav-btn" data-target="manual">📖 User Manual</button>
     </nav>
 
     <!-- User Profile Badge & Switcher -->
@@ -43,132 +41,113 @@
   <!-- Main Body Content -->
   <main class="app-main">
 
-    <!-- 1. DASHBOARD & ANALYTICS TAB -->
-    <section class="tab-pane active" id="tab-dashboard">
+    <!-- 1. LIVE DEMO & PRACTICE TAB (PRIMARY VIEW) -->
+    <section class="tab-pane active" id="tab-practice">
+      
+      <!-- Upload & Quick Start Panel -->
+      <div id="quizzer-setup-panel" class="ui-card" style="margin-bottom:2rem;">
+        <div class="ui-card-header">
+          <div>
+            <h2 style="font-size:1.4rem; color:var(--text-main); margin-bottom:0.25rem;">1. Provide Course Notes & Generate Quiz</h2>
+            <p class="metric-caption">Upload your study PDF, Markdown, or Text files — or try a pre-loaded sample notes file with 1 click.</p>
+          </div>
+        </div>
+
+        <!-- Quick 1-Click Samples -->
+        <div style="margin-bottom:1.25rem;">
+          <span style="font-size:0.85rem; color:var(--text-muted); margin-right:0.5rem; font-weight:600;">⚡ Quick Demo Samples:</span>
+          <div style="display:inline-flex; gap:0.5rem; flex-wrap:wrap; margin-top:0.4rem;">
+            <button class="btn-secondary" onclick="quickStartSample('ml')" style="font-size:0.85rem; padding:0.4rem 0.8rem;">
+              📄 Machine Learning Overfitting (PDF)
+            </button>
+            <button class="btn-secondary" onclick="quickStartSample('code')" style="font-size:0.85rem; padding:0.4rem 0.8rem;">
+              📐 Algorithms & LaTeX Math (Markdown)
+            </button>
+            <button class="btn-secondary" onclick="quickStartSample('biz')" style="font-size:0.85rem; padding:0.4rem 0.8rem;">
+              📊 Business & Financial Notes (TXT)
+            </button>
+          </div>
+        </div>
+
+        <div id="upload-status"></div>
+
+        <!-- Drag & Drop Upload Zone -->
+        <div class="dropzone" id="upload-dropzone" style="padding:2.2rem 1.5rem;">
+          <div class="dropzone-icon" style="font-size:2.5rem; margin-bottom:0.5rem;">📁</div>
+          <h3 style="font-size:1.15rem;">Drop your course PDF or notes file here</h3>
+          <p class="metric-caption" style="margin:0.25rem 0 1rem 0;">
+            Supports PDF, Markdown (.md), and Plain Text (.txt). Automatically parses LaTeX equations and code snippets.
+          </p>
+          <input type="file" id="file-input" style="display:none;" accept=".pdf,.txt,.md" multiple>
+          <button class="btn-primary" type="button" onclick="document.getElementById('file-input').click()">
+            Upload File & Generate Quiz
+          </button>
+        </div>
+      </div>
+
+      <!-- Live Quiz Arena (Active Question Card or Evaluation Summary) -->
+      <div id="practice-arena" style="display:none;">
+        <div id="active-question-container">
+          <!-- Dynamically populated by renderCurrentQuestion() or renderLoopSubmissionSummary() -->
+        </div>
+      </div>
+
+    </section>
+
+    <!-- 2. DASHBOARD & WEAKNESS HEATMAP TAB -->
+    <section class="tab-pane" id="tab-dashboard">
       <div id="analytics-view-container">
         <!-- Rendered dynamically by loadDashboardAnalytics() -->
       </div>
     </section>
 
-    <!-- 2. DOCUMENT INGESTION TAB (REQ_01 to REQ_05) -->
-    <section class="tab-pane" id="tab-ingest">
-      <div class="ui-card" style="margin-bottom:2rem;">
-        <div class="ui-card-header">
-          <div class="ui-card-title">📂 Document Ingestion & Local RAG Vectorization</div>
-          <span class="metric-caption">Supported formats: PDF, Markdown (.md), TXT (REQ_01)</span>
-        </div>
-
-        <div id="upload-status"></div>
-
-        <div class="dropzone" id="upload-dropzone">
-          <div class="dropzone-icon">📥</div>
-          <h3>Drag and drop your study notes here</h3>
-          <p class="metric-caption" style="margin: 0.5rem 0 1.25rem 0;">
-            Accepts lecture slides, mathematical derivations, or code notes (.pdf, .txt, .md).
-          </p>
-          <input type="file" id="file-input" style="display:none;" accept=".pdf,.txt,.md">
-          <button class="btn-primary" type="button" onclick="document.getElementById('file-input').click()">Browse Local File</button>
-        </div>
-      </div>
-
-      <!-- Uploaded Documents List -->
-      <div class="ui-card">
-        <div class="ui-card-header">
-          <div class="ui-card-title">📚 Your Ingested Study Documents</div>
-          <span class="metric-caption">Isolated locally to your student account (SRS 5.3)</span>
-        </div>
-        <div id="documents-container" class="topic-list-group">
-          <!-- Populated by loadDocumentList() -->
-        </div>
-      </div>
-    </section>
-
-    <!-- 3. ADAPTIVE PRACTICE ROOM (UC-2, REQ_10, REQ_11, REQ_12, BR-2, BR-6) -->
-    <section class="tab-pane" id="tab-practice">
-      <!-- Topic Selection View -->
-      <div id="practice-list-area">
-        <div class="ui-card">
-          <div class="ui-card-header">
-            <div class="ui-card-title">🎯 Adaptive Remediation Loops</div>
-            <span class="metric-caption">Sequential module unlocking: 100% mastery required per topic (BR-2)</span>
-          </div>
-          <div id="practice-topics-container" class="topic-list-group">
-            <!-- Populated by loadTopicsForPractice() -->
-          </div>
-        </div>
-      </div>
-
-      <!-- Live Quiz Arena -->
-      <div id="practice-arena" style="display:none;">
-        <div id="active-question-container">
-          <!-- Dynamically populated by renderCurrentQuestion() -->
-        </div>
-      </div>
-    </section>
-
-    <!-- 4. ANALYTICS & HEATMAP TAB -->
-    <section class="tab-pane" id="tab-analytics">
-      <!-- Uses same container as dashboard or can be extended -->
-      <div style="text-align:right; margin-bottom:1rem;">
-        <button class="btn-secondary" onclick="loadDashboardAnalytics()">🔄 Refresh Analytics</button>
-      </div>
-    </section>
-
-    <!-- 5. ADMIN / INSTRUCTOR PORTAL (UC-10, UC-11) -->
+    <!-- 3. ADMIN / INSTRUCTOR PORTAL (UC-10, UC-11) -->
     <section class="tab-pane" id="tab-admin">
       <div class="card-grid">
-        <!-- Syllabus Taxonomy Management -->
         <div class="ui-card" style="grid-column: span 2;">
           <div class="ui-card-header">
-            <div class="ui-card-title">🏛️ Syllabus Taxonomy & Curriculum Design (UC-10)</div>
-            <span class="metric-caption">Add, edit, or reorganize required syllabus modules</span>
+            <div class="ui-card-title">🏛️ Syllabus Taxonomy & Curriculum Management (UC-10)</div>
+            <span class="metric-caption">Manage course topics and required modules</span>
           </div>
-          <div id="admin-taxonomy-container">
-            <!-- Populated by loadAdminTaxonomy() -->
-          </div>
+          <div id="admin-taxonomy-container"></div>
         </div>
 
-        <!-- System Reset & Vector Management Tools -->
         <div class="ui-card">
           <div class="ui-card-header">
-            <div class="ui-card-title">⚙️ Administrative Operations (UC-11)</div>
+            <div class="ui-card-title">⚙️ Instructor Operations (UC-11)</div>
           </div>
-          <p class="metric-caption" style="margin-bottom:1rem;">Manage local vector stores and reset student performance histories.</p>
+          <p class="metric-caption" style="margin-bottom:1rem;">Clear vector stores or reset test histories.</p>
           <div style="display:flex; flex-direction:column; gap:0.75rem;">
-            <button class="btn-secondary" onclick="adminWipeVectors()">🧹 Wipe Vector Collection by Doc ID</button>
+            <button class="btn-secondary" onclick="adminWipeVectors()">🧹 Wipe Vector Store by Doc ID</button>
             <button class="btn-secondary" onclick="adminResetStudent()">🔄 Reset Student Attempt History</button>
-            <button class="btn-primary" onclick="triggerBackgroundAudit()">⏰ Force Daily Memory Decay Audit</button>
+            <button class="btn-primary" onclick="triggerBackgroundAudit()">⏰ Run Memory Decay Audit</button>
           </div>
         </div>
       </div>
     </section>
 
-    <!-- 6. INLINE USER MANUAL & HELP WALKTHROUGH (SRS 2.6) -->
+    <!-- 4. INLINE USER MANUAL & HELP WALKTHROUGH (SRS 2.6) -->
     <section class="tab-pane" id="tab-manual">
       <div class="ui-card">
         <div class="ui-card-header">
-          <div class="ui-card-title">📖 AutoQuiz User Manual & Guide (SRS 2.6)</div>
+          <div class="ui-card-title">📖 AutoQuiz User Manual & Workflow Guide (SRS 2.6)</div>
         </div>
         <div style="display:flex; flex-direction:column; gap:1.25rem; line-height:1.7;">
           <div>
-            <h3 style="color:var(--accent-blue); margin-bottom:0.4rem;">1. Document Ingestion & Local Privacy (BR-1)</h3>
-            <p>Upload your lecture notes in PDF, Markdown (.md), or Plain Text (.txt). All parsing, AST chunking, and embedding vectors are processed and stored locally in Chroma DB to guarantee student privacy.</p>
+            <h3 style="color:var(--accent-blue); margin-bottom:0.4rem;">1. Uploading Materials (BR-1)</h3>
+            <p>Upload lecture slides or notes in PDF, TXT, or Markdown. Content is parsed locally using AST code and LaTeX equation extractors, then vectorized into Chroma DB for grounded question retrieval.</p>
           </div>
           <div>
-            <h3 style="color:var(--accent-indigo); margin-bottom:0.4rem;">2. Adaptive 100% Remediation Loop (BR-2)</h3>
-            <p>AutoQuiz operates on an active recall model. Curriculum topics unlock sequentially. Advancement to subsequent modules strictly requires achieving a 100% mastery score on the current loop iteration.</p>
+            <h3 style="color:var(--accent-indigo); margin-bottom:0.4rem;">2. Adaptive Remediation Loop (BR-2)</h3>
+            <p>AutoQuiz evaluates readiness objectively. You must score <strong>100%</strong> on a topic to master it. If you miss questions, the system isolates your weak concepts, generates newly framed questions, and loops until you achieve 100%.</p>
           </div>
           <div>
             <h3 style="color:var(--warning-amber); margin-bottom:0.4rem;">3. Anti-Guessing Confidence Guard (BR-6)</h3>
-            <p>Every answer submission requires selecting your confidence rating: High, Medium, or Low. If an answer is correct but marked with Low confidence, it is flagged as <em>Unverified</em> and earns 0 mastery credit. The concept will be re-introduced in subsequent loops with modified framing to ensure true comprehension.</p>
+            <p>For every answer, tag your confidence (High, Medium, or Low). Correct answers tagged with <em>Low confidence</em> are marked as <strong>Unverified</strong> and re-introduced in subsequent loops to prevent bypassing weak points by lucky guesses.</p>
           </div>
           <div>
             <h3 style="color:var(--danger-red); margin-bottom:0.4rem;">4. Spaced Repetition Memory Decay (BR-5)</h3>
-            <p>Mastered topics degrade according to an Ebbinghaus retention curve over 7 to 14 days, dynamically scaling based on historical attempt stability. When a topic is marked <em>Review Due</em>, a 2-question micro-verification loop is triggered. A 100% score restores mastery, while failure revokes mastery and initiates full remediation.</p>
-          </div>
-          <div>
-            <h3 style="color:var(--accent-purple); margin-bottom:0.4rem;">5. Interpreting the Weakness Heatmap (BR-4)</h3>
-            <p>The analytics dashboard separates your first-attempt score from looped remediation scores. The Weakness Heatmap color-codes topics by failure rate and unverified lucky guesses, highlighting exact concepts that require review before exams.</p>
+            <p>Topics degrade after 7-14 days based on the Ebbinghaus forgetting curve. A quick 2-question verification loop upon login restores mastery or initiates a refresh loop.</p>
           </div>
         </div>
       </div>
@@ -193,7 +172,7 @@
   <div class="modal-overlay" id="auth-modal" style="display:none;">
     <div class="modal-card">
       <h3 style="margin-bottom:0.75rem;">Switch Active User Account</h3>
-      <p class="metric-caption" style="margin-bottom:1.25rem;">Select an account to test role permissions and student data isolation (SRS 5.3):</p>
+      <p class="metric-caption" style="margin-bottom:1.25rem;">Select an account to test permissions and student data isolation (SRS 5.3):</p>
       <div style="display:flex; flex-direction:column; gap:0.6rem;">
         <button class="btn-secondary" style="text-align:left;" onclick="switchUserAccount('24CSB1A12', 'secret_pass', 'student')">
           👤 <strong>Student A: Dasari Rahul (24CSB1A12)</strong>
@@ -222,4 +201,3 @@
   </script>
 </body>
 </html>
-

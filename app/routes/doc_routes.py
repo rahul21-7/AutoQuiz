@@ -14,34 +14,70 @@ def get_current_user_id() -> str:
 def upload_document():
     """
     Ingests PDF, TXT, or MD study notes (REQ_01 to REQ_05, TC-07 to TC-16).
-    Enforces format validation, integrity check, password check, and duplicate resolution.
+    Supports single or multiple file uploads in one batch.
     """
     user_id = get_current_user_id()
     if not user_id:
         return jsonify({"error": "Authentication required to upload documents."}), 401
 
-    # Check for multipart file or json payload
-    file_bytes = None
-    filename = None
-    title = None
-    overwrite = False
-    create_new_version = False
+    overwrite = request.form.get("overwrite", "false").lower() == "true"
+    create_new_version = request.form.get("create_new_version", "false").lower() == "true"
 
-    if "file" in request.files:
-        uploaded_file = request.files["file"]
-        filename = uploaded_file.filename
-        file_bytes = uploaded_file.read()
-        title = request.form.get("title")
-        overwrite = request.form.get("overwrite", "false").lower() == "true"
-        create_new_version = request.form.get("create_new_version", "false").lower() == "true"
-    else:
-        json_data = request.get_json() or {}
-        filename = json_data.get("filename", "")
-        content = json_data.get("content", "")
-        file_bytes = content.encode("utf-8") if isinstance(content, str) else b""
-        title = json_data.get("title")
-        overwrite = bool(json_data.get("overwrite", False))
-        create_new_version = bool(json_data.get("create_new_version", False))
+    # Support multiple files: files[] or multiple file fields
+    uploaded_files = request.files.getlist("files") or request.files.getlist("file")
+    
+    if uploaded_files:
+        results = []
+        duplicate_prompts = []
+        
+        for up_file in uploaded_files:
+            filename = up_file.filename
+            if not filename:
+                continue
+            file_bytes = up_file.read()
+            try:
+                res = DocumentService.ingest_document(
+                    user_id=user_id,
+                    filename=filename,
+                    file_bytes=file_bytes,
+                    overwrite=overwrite,
+                    create_new_version=create_new_version
+                )
+                if res.get("status") == "duplicate_prompt":
+                    duplicate_prompts.append(res)
+                else:
+                    results.append(res)
+            except Exception as e:
+                return jsonify({"error": f"Error ingesting '{filename}': {str(e)}"}), 400
+
+        if duplicate_prompts and not results:
+            return jsonify(duplicate_prompts[0]), 200
+
+        if len(results) == 1:
+            return jsonify(results[0]), 201
+        elif len(results) > 1:
+            total_chunks = sum(r.get("chunk_count", 0) for r in results)
+            all_topics = []
+            for r in results:
+                all_topics.extend(r.get("topics", []))
+            return jsonify({
+                "status": "success",
+                "message": f"Successfully ingested {len(results)} files.",
+                "total_chunks": total_chunks,
+                "topics": list(dict.fromkeys(all_topics)),
+                "documents": results
+            }), 201
+        else:
+            return jsonify({"error": "No valid files could be processed."}), 400
+
+    # Fallback to json payload (used in tests and API calls)
+    json_data = request.get_json() or {}
+    filename = json_data.get("filename", "")
+    content = json_data.get("content", "")
+    file_bytes = content.encode("utf-8") if isinstance(content, str) else b""
+    title = json_data.get("title")
+    overwrite = bool(json_data.get("overwrite", False))
+    create_new_version = bool(json_data.get("create_new_version", False))
 
     if not filename or file_bytes is None:
         return jsonify({"error": "No file uploaded or file content missing."}), 400
