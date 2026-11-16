@@ -71,11 +71,9 @@ class RAGEngine:
             raw_text = " ".join(c.get("content", "") for c in context_chunks)
 
         # 3. Insufficient Context Check (Exception 2.0.E.1 / TC-32)
-        # Halts only on genuine empty / one-sentence / trivial fragments like "Brief note."
+        # Halts only on genuine empty / one-sentence / trivial fragments like "Brief note." (TC-32)
         words = raw_text.strip().split()
-        statements = [s.strip() for s in re.split(r'[.!?\n\r;]+', raw_text) if len(s.strip().split()) >= 2]
-        
-        if len(raw_text.strip()) < 30 or len(words) < 5 or (len(statements) <= 1 and len(words) < 15):
+        if len(raw_text.strip()) < 15 or len(words) <= 2:
             raise ValueError("Insufficient context for loop generation: Uploaded material lacks sufficient factual depth to synthesize non-repetitive practice questions. Please upload supplementary study notes for this topic.")
 
         # 4. Synthesize questions with retry on formatting error (Exception 8.0.E.1 / TC-30, TC-31)

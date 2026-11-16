@@ -271,3 +271,99 @@ def submit_micro_verification():
     except Exception as ex:
         return jsonify({"error": str(ex)}), 400
 
+@quiz_bp.route("/sessions", methods=["GET"])
+def list_user_quiz_sessions():
+    """Lists all past practice quiz sessions for student with scores and status."""
+    user_id = get_current_user_id()
+    if not user_id:
+        return jsonify({"error": "Authentication required."}), 401
+
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute('''
+    SELECT s.session_id, s.topic_id, s.status, s.current_question_index, 
+           s.questions_json, s.answers_json, s.created_at, s.updated_at,
+           t.name as topic_name, d.title as doc_title,
+           a.score, a.confidence as attempt_confidence
+    FROM quiz_sessions s
+    LEFT JOIN topics t ON s.topic_id = t.topic_id
+    LEFT JOIN documents d ON t.doc_id = d.doc_id
+    LEFT JOIN attempts a ON s.session_id = a.session_id
+    WHERE s.user_id = ?
+    ORDER BY s.updated_at DESC
+    LIMIT 25
+    ''', (user_id,))
+    rows = cursor.fetchall()
+    conn.close()
+
+    sessions = []
+    for r in rows:
+        q_list = json.loads(r["questions_json"]) if r["questions_json"] else []
+        a_list = json.loads(r["answers_json"]) if r["answers_json"] else []
+        sessions.append({
+            "session_id": r["session_id"],
+            "topic_id": r["topic_id"],
+            "topic_name": r["topic_name"] or "Core Study Topic",
+            "doc_title": r["doc_title"] or "Course Material",
+            "status": r["status"],
+            "current_index": r["current_question_index"],
+            "total_questions": len(q_list),
+            "answered_count": len(a_list),
+            "score": r["score"],
+            "created_at": r["created_at"],
+            "updated_at": r["updated_at"]
+        })
+    return jsonify({"sessions": sessions}), 200
+
+@quiz_bp.route("/session/<session_id>", methods=["GET"])
+def get_session_detail(session_id: str):
+    """Retrieves full conversation state of previous practice session."""
+    user_id = get_current_user_id()
+    if not user_id:
+        return jsonify({"error": "Authentication required."}), 401
+
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute('''
+    SELECT s.session_id, s.user_id, s.topic_id, s.status, s.current_question_index,
+           s.questions_json, s.answers_json, s.created_at, s.updated_at,
+           t.name as topic_name, d.title as doc_title
+    FROM quiz_sessions s
+    LEFT JOIN topics t ON s.topic_id = t.topic_id
+    LEFT JOIN documents d ON t.doc_id = d.doc_id
+    WHERE s.session_id = ? AND s.user_id = ?
+    ''', (session_id, user_id))
+    row = cursor.fetchone()
+    if not row:
+        conn.close()
+        return jsonify({"error": "Session not found."}), 404
+
+    cursor.execute('''
+    SELECT score, details_json, timestamp FROM attempts WHERE session_id = ? ORDER BY timestamp DESC LIMIT 1
+    ''', (session_id,))
+    att_row = cursor.fetchone()
+    conn.close()
+
+    questions = json.loads(row["questions_json"]) if row["questions_json"] else []
+    saved_answers = json.loads(row["answers_json"]) if row["answers_json"] else []
+
+    data = {
+        "session_id": row["session_id"],
+        "topic_id": row["topic_id"],
+        "topic_name": row["topic_name"] or "Study Topic",
+        "doc_title": row["doc_title"] or "Study Notes",
+        "status": row["status"],
+        "current_index": row["current_question_index"],
+        "questions": questions,
+        "saved_answers": saved_answers,
+        "total_questions": len(questions),
+        "created_at": row["created_at"],
+        "updated_at": row["updated_at"]
+    }
+    if att_row:
+        data["attempt"] = {
+            "score": att_row["score"],
+            "details": json.loads(att_row["details_json"]) if att_row["details_json"] else []
+        }
+    return jsonify(data), 200
+

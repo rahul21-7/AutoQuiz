@@ -2,31 +2,31 @@
 /* Crisp flat rectangular design, zero rounded bubble edges, zero AI logo gimmicks */
 
 :root {
-  --bg-app: #181818;
-  --bg-sidebar: #1f1f1f;
-  --bg-card: #252526;
-  --bg-input: #2d2d2d;
-  --bg-hover: #333333;
-  --bg-active: #3c3c3c;
+  --bg-app: #0d1117;
+  --bg-sidebar: #161b22;
+  --bg-card: #21262d;
+  --bg-input: #1b2028;
+  --bg-hover: #292e36;
+  --bg-active: #30363d;
   
-  --text-main: #e0e0e0;
-  --text-muted: #a0a0a0;
-  --text-dim: #707070;
+  --text-main: #f0f6fc;
+  --text-muted: #8b949e;
+  --text-dim: #6e7681;
 
-  --accent-blue: #0969da;
-  --accent-blue-hover: #1177ee;
-  --accent-blue-bg: rgba(9, 105, 218, 0.15);
+  --accent-blue: #388bfd;
+  --accent-blue-hover: #58a6ff;
+  --accent-blue-bg: rgba(56, 139, 253, 0.15);
 
-  --success-green: #2ea043;
-  --success-bg: rgba(46, 160, 67, 0.15);
+  --success-green: #3fb950;
+  --success-bg: rgba(63, 185, 80, 0.15);
   --warning-amber: #d29922;
   --warning-bg: rgba(210, 153, 34, 0.15);
   --danger-red: #f85149;
   --danger-bg: rgba(248, 81, 73, 0.15);
 
-  --border-color: #333333;
-  --border-light: #2a2a2a;
-  --border-focus: #555555;
+  --border-color: #30363d;
+  --border-light: #21262d;
+  --border-focus: #58a6ff;
 
   /* Crisp square / standard 2px radius */
   --radius-xs: 2px;
@@ -150,6 +150,80 @@ html, body {
   background-color: var(--bg-active);
   color: #ffffff;
   font-weight: 600;
+}
+
+/* Sidebar Recent Practice Sessions */
+.sidebar-session-item {
+  display: flex;
+  flex-direction: column;
+  padding: 0.5rem 0.65rem;
+  margin-bottom: 2px;
+  border-left: 2px solid transparent;
+  background-color: transparent;
+  cursor: pointer;
+  user-select: none;
+  transition: all 0.12s ease;
+}
+
+.sidebar-session-item:hover {
+  background-color: var(--bg-hover);
+  border-left-color: var(--accent-blue);
+}
+
+.sidebar-session-item.active {
+  background-color: var(--bg-active);
+  border-left-color: var(--accent-blue-hover);
+}
+
+.session-item-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.4rem;
+  margin-bottom: 0.15rem;
+}
+
+.session-item-title {
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: #f0f0f0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
+
+.session-badge {
+  font-size: 0.68rem;
+  font-weight: 600;
+  padding: 0.1rem 0.35rem;
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+}
+
+.session-badge.mastered {
+  color: #3fb950;
+  background: rgba(46, 160, 67, 0.18);
+  border: 1px solid rgba(46, 160, 67, 0.35);
+}
+
+.session-badge.graded {
+  color: #e3b341;
+  background: rgba(210, 153, 34, 0.18);
+  border: 1px solid rgba(210, 153, 34, 0.35);
+}
+
+.session-badge.active {
+  color: #58a6ff;
+  background: rgba(56, 139, 253, 0.18);
+  border: 1px solid rgba(56, 139, 253, 0.35);
+}
+
+.session-item-meta {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.72rem;
+  color: var(--text-dim);
 }
 
 .sidebar-footer {

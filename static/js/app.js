@@ -31,6 +31,7 @@ document.addEventListener("DOMContentLoaded", () => {
   setupQuizKeyShortcuts();
   checkAuthAndLoad();
   loadRecentMaterials();
+  loadRecentSessions();
 });
 
 function setupQuizKeyShortcuts() {
@@ -261,15 +262,16 @@ async function quickStartSample(sampleType) {
     try { data = JSON.parse(textRes); } catch (_) { throw new Error(textRes); }
 
     if (!res.ok) {
-      loadingMsg.querySelector(".msg-content").innerHTML = `Error: ${data.error || "Failed to load sample"}`;
+      loadingMsg.querySelector(".msg-body").innerHTML = `Error: ${data.error || "Failed to load sample"}`;
       return;
     }
 
     loadingMsg.remove();
     initQuizSession(data);
     loadRecentMaterials();
+    loadRecentSessions();
   } catch (err) {
-    loadingMsg.querySelector(".msg-content").innerHTML = `Connection Error: ${escapeHtml(err.message)}`;
+    loadingMsg.querySelector(".msg-body").innerHTML = `Connection Error: ${escapeHtml(err.message)}`;
   }
 }
 
@@ -300,15 +302,16 @@ async function uploadAndStartQuiz(file) {
     }
 
     if (!res.ok) {
-      loadingMsg.querySelector(".msg-content").innerHTML = `Ingestion Error: ${escapeHtml(data.error || "Upload failed.")}`;
+      loadingMsg.querySelector(".msg-body").innerHTML = `Ingestion Error: ${escapeHtml(data.error || "Upload failed.")}`;
       return;
     }
 
     loadingMsg.remove();
     initQuizSession(data);
     loadRecentMaterials();
+    loadRecentSessions();
   } catch (err) {
-    loadingMsg.querySelector(".msg-content").innerHTML = `Ingestion Error: ${escapeHtml(err.message)}`;
+    loadingMsg.querySelector(".msg-body").innerHTML = `Ingestion Error: ${escapeHtml(err.message)}`;
   }
 }
 
@@ -330,6 +333,7 @@ function initQuizSession(sessionData) {
   }
 
   renderCurrentQuestionInChat();
+  loadRecentSessions();
 }
 
 // --- Question Rendering in Chat Stream ---
@@ -443,7 +447,7 @@ function submitChatQuestionAnswer() {
         selected_answer: selectedAnswer,
         confidence: conf
       })
-    }).catch(e => console.warn("Background progress sync:", e));
+    }).then(() => loadRecentSessions()).catch(e => console.warn("Background progress sync:", e));
   }
 
   state.submittedAnswers.push({
@@ -454,6 +458,7 @@ function submitChatQuestionAnswer() {
 
   state.currentQuestionIndex++;
   renderCurrentQuestionInChat();
+  loadRecentSessions();
 }
 
 async function submitFullLoop() {
@@ -540,8 +545,10 @@ async function submitFullLoop() {
         window.ThreeElements.renderMasteryTrophy("mastery-3d-stage");
       }, 50);
     }
+    // Refresh sidebar sessions to reflect latest score and status
+    loadRecentSessions();
   } catch (err) {
-    evalLoading.querySelector(".msg-content").innerHTML = `Evaluation Error: ${escapeHtml(err.message)}`;
+    evalLoading.querySelector(".msg-body").innerHTML = `Evaluation Error: ${escapeHtml(err.message)}`;
   }
 }
 
@@ -581,6 +588,231 @@ function promptEarlyExit() {
     }
     startNewChat();
   }
+}
+
+// --- Recent Practice Sessions & History (Chat Persistence) ---
+async function loadRecentSessions() {
+  const list = document.getElementById("sidebar-sessions-list");
+  if (!list) return;
+
+  try {
+    const res = await fetch("/api/quiz/sessions", {
+      headers: { "X-User-ID": state.currentUser.userId }
+    });
+    if (!res.ok) return;
+    const data = await res.json();
+    const sessions = data.sessions || [];
+
+    if (sessions.length === 0) {
+      list.innerHTML = `<li style="padding:0.4rem 0.65rem; font-size:0.75rem; color:var(--text-dim);">No practice chats yet</li>`;
+      return;
+    }
+
+    list.innerHTML = sessions.slice(0, 12).map(s => {
+      const isCompleted = s.status === "completed";
+      const isMastered = isCompleted && s.score === 100;
+      let badgeClass = "active";
+      let badgeText = `Q${s.current_index + 1}/${s.total_questions || 3}`;
+
+      if (isCompleted) {
+        if (isMastered) {
+          badgeClass = "mastered";
+          badgeText = "100%";
+        } else {
+          badgeClass = "graded";
+          badgeText = s.score !== null ? `${Math.round(s.score)}%` : "Done";
+        }
+      }
+
+      const activeClass = state.activeSession && state.activeSession.session_id === s.session_id ? "active" : "";
+      const displayTitle = s.topic_name || s.doc_title || "Practice Session";
+      const timeStr = formatRelativeTime(s.updated_at);
+
+      return `
+        <li class="sidebar-session-item ${activeClass}" id="side-sess-${s.session_id}" onclick="loadPastSession('${s.session_id}')" title="${escapeHtml(displayTitle)}">
+          <div class="session-item-header">
+            <span class="session-item-title">${escapeHtml(displayTitle)}</span>
+            <span class="session-badge ${badgeClass}">${badgeText}</span>
+          </div>
+          <div class="session-item-meta">
+            <span>${timeStr}</span>
+            <span>${isCompleted ? (isMastered ? 'Mastered' : 'Remediation') : 'In Progress'}</span>
+          </div>
+        </li>
+      `;
+    }).join("");
+  } catch (e) {
+    console.warn("Could not load recent sessions:", e);
+  }
+}
+
+async function loadPastSession(sessionId) {
+  switchView("chat");
+
+  document.querySelectorAll(".sidebar-session-item").forEach(el => el.classList.remove("active"));
+  const currentSideEl = document.getElementById(`side-sess-${sessionId}`);
+  if (currentSideEl) currentSideEl.classList.add("active");
+
+  const welcome = document.getElementById("gemini-welcome-block");
+  if (welcome) welcome.style.display = "none";
+
+  const conv = document.getElementById("chat-conversation");
+  if (conv) conv.innerHTML = "";
+
+  const loadingMsg = appendMessage("ai", "Restoring practice chat history and verification states...");
+
+  try {
+    const res = await fetch(`/api/quiz/session/${sessionId}`, {
+      headers: { "X-User-ID": state.currentUser.userId }
+    });
+    if (!res.ok) {
+      loadingMsg.querySelector(".msg-body").innerHTML = `Error: Could not retrieve past session.`;
+      return;
+    }
+
+    const sessionData = await res.json();
+    loadingMsg.remove();
+
+    state.activeSession = sessionData;
+    state.currentQuestionIndex = sessionData.current_index || 0;
+    state.submittedAnswers = sessionData.saved_answers || [];
+    state.currentSelection = null;
+    state.currentConfidence = null;
+
+    const headerTitle = document.getElementById("chat-header-title");
+    if (headerTitle) {
+      headerTitle.textContent = `Topic: ${sessionData.topic_name || sessionData.doc_title || "Practice Notes"}`;
+    }
+
+    const isMastered = sessionData.status === "completed" && sessionData.attempt && sessionData.attempt.score === 100;
+    const headerStatus = document.getElementById("chat-header-status");
+    if (headerStatus) {
+      if (sessionData.status === "completed") {
+        headerStatus.innerHTML = isMastered
+          ? `<span class="status-chip mastered">100% Mastered</span>`
+          : `<span class="status-chip remediation">Remediation Required (${sessionData.attempt ? sessionData.attempt.score : 0}%)</span>`;
+      } else {
+        headerStatus.innerHTML = `<span class="status-chip remediation">Practice Loop In Progress [Q${state.currentQuestionIndex + 1}/${sessionData.total_questions || 3}]</span>`;
+      }
+    }
+
+    appendMessage("user", `Resumed study session: <strong>${escapeHtml(sessionData.topic_name || sessionData.doc_title)}</strong>`);
+    appendMessage("ai", `Retrieved practice session with ${sessionData.total_questions || 3} questions grounded in <strong>${escapeHtml(sessionData.doc_title || sessionData.topic_name)}</strong>.`);
+
+    const questions = sessionData.questions || [];
+    const saved = sessionData.saved_answers || [];
+    const letters = ["A", "B", "C", "D"];
+
+    for (let i = 0; i < saved.length && i < questions.length; i++) {
+      const q = questions[i];
+      const ans = saved[i];
+      const qNum = i + 1;
+      const total = questions.length;
+
+      let answerDetailHtml = "";
+      if (sessionData.attempt && sessionData.attempt.details && sessionData.attempt.details[i]) {
+        const det = sessionData.attempt.details[i];
+        answerDetailHtml = `
+          <div style="margin-top:0.6rem; padding:0.4rem 0.6rem; background:#18191a; border-left:3px solid ${det.is_correct && !det.is_unverified ? 'var(--success-green)' : 'var(--danger-red)'}; font-size:0.82rem;">
+            ${escapeHtml(det.feedback || det.explanation || q.explanation || "")}
+          </div>
+        `;
+      }
+
+      const answeredCardHtml = `
+        <div class="quiz-box" style="opacity:0.92;">
+          <div class="quiz-header">
+            <span style="font-size:0.82rem; font-weight:600; color:var(--text-dim);">QUESTION ${qNum} OF ${total} [COMPLETED]</span>
+          </div>
+          <div class="quiz-stem">${escapeHtml(q.question)}</div>
+          <div class="quiz-options">
+            ${q.options.map((opt, optIdx) => {
+              const isSelected = opt === ans.selected_answer;
+              return `
+                <div class="quiz-option-btn ${isSelected ? 'selected' : ''}" style="pointer-events:none; cursor:default;">
+                  <span class="opt-letter">${letters[optIdx] || (optIdx + 1)}</span>
+                  <span style="flex:1;">${escapeHtml(opt)}</span>
+                  ${isSelected ? `<span style="font-size:0.75rem; color:#85b7eb; font-weight:600;">[SELECTED]</span>` : ''}
+                </div>
+              `;
+            }).join("")}
+          </div>
+          <div style="font-size:0.78rem; color:var(--text-muted); display:flex; justify-content:space-between; align-items:center;">
+            <span>Tagged Confidence: <strong>${escapeHtml(ans.confidence || 'Medium')}</strong></span>
+            <span>Recorded</span>
+          </div>
+          ${answerDetailHtml}
+        </div>
+      `;
+
+      appendMessage("ai", answeredCardHtml);
+      appendMessage("user", `Selected: <strong>${escapeHtml(ans.selected_answer)}</strong> [${ans.confidence} Confidence]`);
+    }
+
+    if (sessionData.status === "completed" && sessionData.attempt) {
+      const att = sessionData.attempt;
+      const score = att.score;
+      const isMast = score === 100;
+
+      const trophyHtml = isMast
+        ? `<div style="display:flex; align-items:center; gap:1.25rem; margin:0.75rem 0;">
+             <div id="mastery-3d-stage" style="width:100px; height:100px; flex-shrink:0;"></div>
+             <div>
+               <div style="font-weight:700; color:var(--success-green); font-size:1rem;">100% Mastery Verified</div>
+               <div style="font-size:0.82rem; color:var(--text-muted); margin-top:0.2rem;">All concepts verified with sufficient confidence. Next sequential module is unlocked.</div>
+             </div>
+           </div>`
+        : ``;
+
+      const summaryHtml = `
+        <div class="eval-box">
+          <div class="eval-banner ${isMast ? 'success' : 'warning'}">
+            <div style="font-size:1.1rem; font-weight:700; margin-bottom:0.25rem;">
+              ${isMast ? '100% Mastery Achieved' : `Loop Score: ${score}% (Remediation Required)`}
+            </div>
+            <p style="font-size:0.88rem; line-height:1.5;">
+              ${isMast
+                ? 'All concepts verified with High/Medium confidence. Next sequential module is now unlocked.'
+                : 'Advancement requires a strict 100% score on the current loop iteration (BR-2). You can begin a fresh remediation loop below.'}
+            </p>
+          </div>
+
+          ${trophyHtml}
+
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-top:1rem;">
+            <button class="btn-secondary" onclick="startNewChat()">Start Different Topic</button>
+            ${isMast
+              ? `<button class="btn-submit-quiz" onclick="switchView('dashboard')">View Progress Analytics</button>`
+              : `<button class="btn-submit-quiz" onclick="launchQuizSession('${sessionData.topic_id}')">Begin New Remediation Loop</button>`
+            }
+          </div>
+        </div>
+      `;
+
+      appendMessage("ai", summaryHtml);
+
+      if (isMast && window.ThreeElements && window.ThreeElements.renderMasteryTrophy) {
+        setTimeout(() => {
+          window.ThreeElements.renderMasteryTrophy("mastery-3d-stage");
+        }, 50);
+      }
+    } else {
+      renderCurrentQuestionInChat();
+    }
+
+  } catch (err) {
+    appendMessage("ai", `Failed to restore session: ${escapeHtml(err.message)}`);
+  }
+}
+
+function formatRelativeTime(ts) {
+  if (!ts) return "";
+  const now = Date.now() / 1000;
+  const diff = Math.floor(now - ts);
+  if (diff < 60) return "Just now";
+  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+  return `${Math.floor(diff / 86400)}d ago`;
 }
 
 // --- Recent Materials Sidebar List ---
@@ -632,7 +864,7 @@ async function practiceRecentDoc(docId, title) {
     const targetTopic = docTopics.find(t => t.is_unlocked) || docTopics[0];
     launchQuizSession(targetTopic.topic_id);
   } catch (e) {
-    loading.querySelector(".msg-content").innerHTML = `Error: ${e.message}`;
+    loading.querySelector(".msg-body").innerHTML = `Error: ${e.message}`;
   }
 }
 
@@ -664,6 +896,17 @@ async function loadDashboardAnalytics() {
       return;
     }
 
+    let sessions = [];
+    try {
+      const sessRes = await fetch("/api/quiz/sessions", {
+        headers: { "X-User-ID": state.currentUser.userId }
+      });
+      if (sessRes.ok) {
+        const sessData = await sessRes.json();
+        sessions = sessData.sessions || [];
+      }
+    } catch (_) {}
+
     container.innerHTML = `
       <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:1rem; margin-bottom:1.5rem;">
         <div class="panel-card">
@@ -684,17 +927,68 @@ async function loadDashboardAnalytics() {
       </div>
 
       <div class="panel-card">
-        <h3 style="font-size:1rem; font-weight:500; margin-bottom:1rem;">Weakness Heatmap & Mastery Breakdown</h3>
+        <h3 style="font-size:1rem; font-weight:600; margin-bottom:1rem; color:#ffffff;">Weakness Heatmap & Mastery Breakdown</h3>
         <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(200px, 1fr)); gap:0.75rem;">
           ${data.heatmap_tiles.map(tile => `
-            <div style="background:#18191a; padding:1rem; border-radius:4px; border-top:3px solid ${tile.color_hex};">
-              <div style="font-weight:500; font-size:0.92rem; margin-bottom:0.25rem;">${escapeHtml(tile.topic_name)}</div>
+            <div style="background:#18191a; padding:1rem; border-left:3px solid ${tile.color_hex};">
+              <div style="font-weight:600; font-size:0.92rem; margin-bottom:0.25rem; color:#ffffff;">${escapeHtml(tile.topic_name)}</div>
               <div style="font-size:0.78rem; color:${tile.color_hex}; font-weight:600; margin-bottom:0.4rem;">${tile.weakness_level}</div>
               <div style="font-size:0.78rem; color:var(--text-dim);">Avg Score: ${tile.average_score}%</div>
               <div style="font-size:0.78rem; color:var(--text-dim);">Failures: ${tile.failure_count} | Unverified: ${tile.unverified_guesses}</div>
             </div>
           `).join("")}
         </div>
+      </div>
+
+      <div class="panel-card" style="margin-top:1.25rem;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.75rem;">
+          <h3 style="font-size:1rem; font-weight:600; color:#ffffff;">Practice Session History & Saved Chats</h3>
+          <button class="btn-new-chat" style="margin:0; padding:0.35rem 0.75rem;" onclick="startNewChat()">+ New Quiz Loop</button>
+        </div>
+        ${sessions.length === 0 ? `<div style="color:var(--text-dim); font-size:0.85rem; padding:0.5rem 0;">No practice sessions found yet. Start a session from the Quiz tab.</div>` : `
+          <div style="overflow-x:auto;">
+            <table style="width:100%; border-collapse:collapse; font-size:0.85rem; text-align:left;">
+              <thead>
+                <tr style="border-bottom:1px solid var(--border-color); color:var(--text-dim); font-size:0.75rem; text-transform:uppercase;">
+                  <th style="padding:0.6rem 0.8rem;">Topic / Subject</th>
+                  <th style="padding:0.6rem 0.8rem;">Status</th>
+                  <th style="padding:0.6rem 0.8rem;">Score</th>
+                  <th style="padding:0.6rem 0.8rem;">Questions</th>
+                  <th style="padding:0.6rem 0.8rem;">Last Active</th>
+                  <th style="padding:0.6rem 0.8rem; text-align:right;">Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${sessions.map(s => {
+                  const isCompleted = s.status === "completed";
+                  const isMastered = isCompleted && s.score === 100;
+                  const statusTag = isCompleted
+                    ? (isMastered ? '<span class="status-chip mastered">100% Mastered</span>' : '<span class="status-chip remediation">Remediation</span>')
+                    : '<span class="status-chip active">In Progress</span>';
+                  const scoreStr = s.score !== null ? `${Math.round(s.score)}%` : '—';
+                  const questionsStr = `${s.answered_count} / ${s.total_questions || 3}`;
+                  return `
+                    <tr style="border-bottom:1px solid var(--border-light);">
+                      <td style="padding:0.65rem 0.8rem; font-weight:500; color:#ffffff;">
+                        ${escapeHtml(s.topic_name)}
+                        <div style="font-size:0.75rem; color:var(--text-dim);">${escapeHtml(s.doc_title)}</div>
+                      </td>
+                      <td style="padding:0.65rem 0.8rem;">${statusTag}</td>
+                      <td style="padding:0.65rem 0.8rem; font-family:var(--font-mono); font-weight:600;">${scoreStr}</td>
+                      <td style="padding:0.65rem 0.8rem; font-family:var(--font-mono); color:var(--text-muted);">${questionsStr}</td>
+                      <td style="padding:0.65rem 0.8rem; color:var(--text-dim);">${formatRelativeTime(s.updated_at)}</td>
+                      <td style="padding:0.65rem 0.8rem; text-align:right;">
+                        <button class="btn-secondary" style="padding:0.3rem 0.65rem; font-size:0.78rem;" onclick="loadPastSession('${s.session_id}')">
+                          ${isCompleted ? 'Review Chat' : 'Resume Quiz'}
+                        </button>
+                      </td>
+                    </tr>
+                  `;
+                }).join("")}
+              </tbody>
+            </table>
+          </div>
+        `}
       </div>
     `;
   } catch (err) {

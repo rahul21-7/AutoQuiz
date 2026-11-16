@@ -97,6 +97,22 @@ class DocumentService:
                 except Exception:
                     pass
 
+            # Inspect docProps/core.xml for presentation title or subject
+            if "docProps/core.xml" in z.namelist():
+                try:
+                    core_xml = z.read("docProps/core.xml")
+                    core_tree = ET.fromstring(core_xml)
+                    for elem in core_tree.iter():
+                        if (elem.tag.endswith('}title') or elem.tag.endswith('}subject')) and elem.text and elem.text.strip():
+                            slides_text.insert(0, elem.text.strip() + ".")
+                except Exception:
+                    pass
+
+            # Prepend clean filename title as topical context if not already present
+            doc_title_clean = os.path.splitext(filename)[0].replace("_", " ").strip()
+            if doc_title_clean and not any(doc_title_clean.lower() in s.lower() for s in slides_text):
+                slides_text.insert(0, f"Topic: {doc_title_clean}.")
+
             full_text = "\n\n".join(slides_text).strip()
             if not full_text:
                 raise ValueError("The presentation contains slides but no readable text.")
