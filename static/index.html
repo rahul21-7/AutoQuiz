@@ -8,10 +8,17 @@
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css">
   <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.js"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/contrib/auto-render.min.js"></script>
-  <!-- Application Styles (WCAG AA High-Contrast >= 4.5:1) -->
+
+  <!-- Application Styles (WCAG AA High-Contrast >= 4.5:1, 3D Glassmorphic Theme) -->
   <link rel="stylesheet" href="/static/css/styles.css">
+
+  <!-- Three.js Local High-Performance 3D Library -->
+  <script src="/static/js/three.min.js"></script>
 </head>
 <body>
+
+  <!-- Fullscreen 3D Synaptic Constellation & Particle Cloud -->
+  <canvas id="bg-3d-canvas"></canvas>
 
   <!-- App Header -->
   <header class="app-header">
@@ -34,7 +41,7 @@
     <!-- User Profile Badge & Switcher -->
     <div class="user-profile-badge" id="user-profile-display">
       <span class="user-tag">👤 24CSB1A12 (STUDENT)</span>
-      <button class="btn-secondary" style="padding:0.3rem 0.6rem; font-size:0.8rem;" onclick="openAuthModal()">Switch User</button>
+      <button class="btn-secondary" style="padding:0.35rem 0.75rem; font-size:0.8rem;" onclick="openAuthModal()">Switch User</button>
     </div>
   </header>
 
@@ -44,43 +51,61 @@
     <!-- 1. LIVE DEMO & PRACTICE TAB (PRIMARY VIEW) -->
     <section class="tab-pane active" id="tab-practice">
       
+      <!-- 3D Interactive Hero Banner -->
+      <div class="hero-banner">
+        <div class="hero-content">
+          <div class="hero-badge-pill">
+            <span>✨ AI Adaptive Engine</span>
+            <span>•</span>
+            <span>100% Mastery Loop</span>
+          </div>
+          <h1 class="hero-title">Adaptive Knowledge Mastery</h1>
+          <p class="hero-description">
+            Upload lecture slides or notes in <strong>PDF, PPTX, Markdown, or Text</strong>. 
+            AutoQuiz extracts key concepts, generates grounded questions, and guides you through 
+            continuous adaptive remediation loops until every concept reaches complete 100% mastery.
+          </p>
+        </div>
+        <div id="hero-3d-container" title="Interactive 3D Holographic AI Core"></div>
+      </div>
+
       <!-- Upload & Quick Start Panel -->
       <div id="quizzer-setup-panel" class="ui-card" style="margin-bottom:2rem;">
         <div class="ui-card-header">
           <div>
-            <h2 style="font-size:1.4rem; color:var(--text-main); margin-bottom:0.25rem;">1. Provide Course Notes & Generate Quiz</h2>
-            <p class="metric-caption">Upload your study PDF, Markdown, or Text files — or try a pre-loaded sample notes file with 1 click.</p>
+            <h2 class="ui-card-title">1. Provide Course Notes & Generate Quiz</h2>
+            <p class="metric-caption">Upload your study files or click a pre-loaded sample notes package below for an instant demo.</p>
           </div>
         </div>
 
-        <!-- Quick 1-Click Samples -->
-        <div style="margin-bottom:1.25rem;">
-          <span style="font-size:0.85rem; color:var(--text-muted); margin-right:0.5rem; font-weight:600;">⚡ Quick Demo Samples:</span>
-          <div style="display:inline-flex; gap:0.5rem; flex-wrap:wrap; margin-top:0.4rem;">
-            <button class="btn-secondary" onclick="quickStartSample('ml')" style="font-size:0.85rem; padding:0.4rem 0.8rem;">
-              📄 Machine Learning Overfitting (PDF)
-            </button>
-            <button class="btn-secondary" onclick="quickStartSample('code')" style="font-size:0.85rem; padding:0.4rem 0.8rem;">
-              📐 Algorithms & LaTeX Math (Markdown)
-            </button>
-            <button class="btn-secondary" onclick="quickStartSample('biz')" style="font-size:0.85rem; padding:0.4rem 0.8rem;">
-              📊 Business & Financial Notes (TXT)
-            </button>
-          </div>
+        <!-- Quick 1-Click Samples Bar -->
+        <div class="sample-bar">
+          <span style="font-size:0.85rem; color:var(--text-muted); font-weight:700;">⚡ Instant Demos:</span>
+          <button class="sample-chip" onclick="quickStartSample('ml')">
+            <span>📄</span> Machine Learning Overfitting (PDF)
+          </button>
+          <button class="sample-chip" onclick="quickStartSample('code')">
+            <span>📐</span> Algorithms & LaTeX Math (Markdown)
+          </button>
+          <button class="sample-chip" onclick="quickStartSample('biz')">
+            <span>📊</span> Business & Financial Notes (TXT)
+          </button>
         </div>
 
         <div id="upload-status"></div>
 
         <!-- Drag & Drop Upload Zone -->
-        <div class="dropzone" id="upload-dropzone" style="padding:2.2rem 1.5rem;">
-          <div class="dropzone-icon" style="font-size:2.5rem; margin-bottom:0.5rem;">📁</div>
-          <h3 style="font-size:1.15rem;">Drop your course PDF or notes file here</h3>
-          <p class="metric-caption" style="margin:0.25rem 0 1rem 0;">
-            Supports PDF, Markdown (.md), and Plain Text (.txt). Automatically parses LaTeX equations and code snippets.
+        <div class="dropzone" id="upload-dropzone">
+          <div class="dropzone-icon">📁</div>
+          <h3 style="font-size:1.25rem; font-weight:700; margin-bottom:0.35rem; color:#FFFFFF;">
+            Drop your course PDF, PowerPoint, or Notes file here
+          </h3>
+          <p class="metric-caption" style="margin-bottom:1.25rem;">
+            Supports PDF (<code>.pdf</code>), PowerPoint (<code>.pptx</code>), Markdown (<code>.md</code>), and Plain Text (<code>.txt</code>).
           </p>
-          <input type="file" id="file-input" style="display:none;" accept=".pdf,.txt,.md" multiple>
+          <input type="file" id="file-input" style="display:none;" accept=".pdf,.pptx,.ppt,.txt,.md" multiple>
           <button class="btn-primary" type="button" onclick="document.getElementById('file-input').click()">
-            Upload File & Generate Quiz
+            <span>📤</span> Upload File & Generate Quiz
           </button>
         </div>
       </div>
@@ -116,8 +141,8 @@
           <div class="ui-card-header">
             <div class="ui-card-title">⚙️ Instructor Operations (UC-11)</div>
           </div>
-          <p class="metric-caption" style="margin-bottom:1rem;">Clear vector stores or reset test histories.</p>
-          <div style="display:flex; flex-direction:column; gap:0.75rem;">
+          <p class="metric-caption" style="margin-bottom:1.25rem;">Clear vector stores or reset test histories.</p>
+          <div style="display:flex; flex-direction:column; gap:0.85rem;">
             <button class="btn-secondary" onclick="adminWipeVectors()">🧹 Wipe Vector Store by Doc ID</button>
             <button class="btn-secondary" onclick="adminResetStudent()">🔄 Reset Student Attempt History</button>
             <button class="btn-primary" onclick="triggerBackgroundAudit()">⏰ Run Memory Decay Audit</button>
@@ -132,10 +157,10 @@
         <div class="ui-card-header">
           <div class="ui-card-title">📖 AutoQuiz User Manual & Workflow Guide (SRS 2.6)</div>
         </div>
-        <div style="display:flex; flex-direction:column; gap:1.25rem; line-height:1.7;">
+        <div style="display:flex; flex-direction:column; gap:1.5rem; line-height:1.7;">
           <div>
             <h3 style="color:var(--accent-blue); margin-bottom:0.4rem;">1. Uploading Materials (BR-1)</h3>
-            <p>Upload lecture slides or notes in PDF, TXT, or Markdown. Content is parsed locally using AST code and LaTeX equation extractors, then vectorized into Chroma DB for grounded question retrieval.</p>
+            <p>Upload lecture slides or notes in PDF, PPTX, TXT, or Markdown. Content is parsed locally using AST code and LaTeX equation extractors, then vectorized into Chroma DB for grounded question retrieval.</p>
           </div>
           <div>
             <h3 style="color:var(--accent-indigo); margin-bottom:0.4rem;">2. Adaptive Remediation Loop (BR-2)</h3>
@@ -171,16 +196,16 @@
   <!-- User Switcher Modal (Student A, Student B, Admin) -->
   <div class="modal-overlay" id="auth-modal" style="display:none;">
     <div class="modal-card">
-      <h3 style="margin-bottom:0.75rem;">Switch Active User Account</h3>
+      <h3 style="margin-bottom:0.75rem; color:#FFFFFF;">Switch Active User Account</h3>
       <p class="metric-caption" style="margin-bottom:1.25rem;">Select an account to test permissions and student data isolation (SRS 5.3):</p>
-      <div style="display:flex; flex-direction:column; gap:0.6rem;">
-        <button class="btn-secondary" style="text-align:left;" onclick="switchUserAccount('24CSB1A12', 'secret_pass', 'student')">
+      <div style="display:flex; flex-direction:column; gap:0.75rem;">
+        <button class="btn-secondary" style="text-align:left; justify-content:flex-start;" onclick="switchUserAccount('24CSB1A12', 'secret_pass', 'student')">
           👤 <strong>Student A: Dasari Rahul (24CSB1A12)</strong>
         </button>
-        <button class="btn-secondary" style="text-align:left;" onclick="switchUserAccount('24CSB1A13', 'student_pass_13', 'student')">
+        <button class="btn-secondary" style="text-align:left; justify-content:flex-start;" onclick="switchUserAccount('24CSB1A13', 'student_pass_13', 'student')">
           👤 <strong>Student B: Devarapaga Surya Teja (24CSB1A13)</strong>
         </button>
-        <button class="btn-secondary" style="text-align:left;" onclick="switchUserAccount('admin', 'admin_pass_2026', 'admin')">
+        <button class="btn-secondary" style="text-align:left; justify-content:flex-start;" onclick="switchUserAccount('admin', 'admin_pass_2026', 'admin')">
           🛡️ <strong>Course Instructor / System Admin</strong>
         </button>
       </div>
@@ -190,6 +215,8 @@
     </div>
   </div>
 
+  <!-- Application Logic & 3D Visuals Engine -->
+  <script src="/static/js/three_visuals.js"></script>
   <script src="/static/js/app.js"></script>
   <script>
     async function triggerBackgroundAudit() {

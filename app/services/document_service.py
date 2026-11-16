@@ -25,8 +25,10 @@ class DocumentService:
     def validate_file_format(filename: str) -> Tuple[bool, str]:
         """Validates file extension case-insensitively (REQ_01, TC-08, TC-09)."""
         ext = os.path.splitext(filename)[1].lower()
+        if ext == ".ppt":
+            return False, "Legacy .ppt binary format detected. Please save your presentation as PDF (.pdf) or modern PowerPoint (.pptx) and re-upload."
         if ext not in ALLOWED_EXTENSIONS:
-            return False, f"Unsupported file format: '{ext}'. Allowed formats are PDF, TXT, and Markdown (.md)."
+            return False, f"Unsupported file format: '{ext}'. Allowed formats are PDF (.pdf), PowerPoint (.pptx), Markdown (.md), and Text (.txt)."
         return True, ext
 
     @staticmethod
@@ -41,7 +43,44 @@ class DocumentService:
         if len(file_bytes) == 0:
             raise ValueError("The uploaded file is empty (0 bytes) and contains no readable text.")
 
-        if ext == ".pdf":
+        if ext == ".pptx":
+            import zipfile
+            import io
+            import xml.etree.ElementTree as ET
+
+            try:
+                z = zipfile.ZipFile(io.BytesIO(file_bytes))
+            except Exception as e:
+                raise ValueError(f"Corrupted or invalid PowerPoint presentation: {str(e)}")
+
+            slide_files = [f for f in z.namelist() if f.startswith("ppt/slides/slide") and f.endswith(".xml")]
+            if not slide_files:
+                raise ValueError("The presentation contains no slides or readable text.")
+
+            # Sort slides numerically (slide1.xml, slide2.xml, ...)
+            def slide_num(s):
+                m = re.search(r'slide(\d+)\.xml', s)
+                return int(m.group(1)) if m else 0
+
+            slide_files = sorted(slide_files, key=slide_num)
+            slides_text = []
+
+            for sfile in slide_files:
+                try:
+                    xml_data = z.read(sfile)
+                    tree = ET.fromstring(xml_data)
+                    slide_words = [elem.text for elem in tree.iter() if elem.tag.endswith('}t') and elem.text]
+                    if slide_words:
+                        slides_text.append(" ".join(slide_words))
+                except Exception:
+                    continue
+
+            full_text = "\n\n".join(slides_text).strip()
+            if not full_text:
+                raise ValueError("The presentation contains slides but no readable text.")
+            return full_text, warnings
+
+        elif ext == ".pdf":
             # 1. Integrity check: reject executable or fake files renamed to .pdf (TC-10)
             if not file_bytes.startswith(b"%PDF-"):
                 # Check for PE executable headers (MZ) or ELF

@@ -96,9 +96,18 @@ async function quickStartSample(sampleType) {
       },
       body: JSON.stringify({ sample: sampleType })
     });
-    const data = await res.json();
+    
+    const textResponse = await res.text();
+    let data;
+    try {
+      data = JSON.parse(textResponse);
+    } catch (parseErr) {
+      status.innerHTML = `<div class="alert-banner danger">❌ Server Error: ${escapeHtml(textResponse.slice(0, 150))}</div>`;
+      return;
+    }
+
     if (!res.ok) {
-      status.innerHTML = `<div class="alert-banner danger">❌ Error: ${data.error}</div>`;
+      status.innerHTML = `<div class="alert-banner danger">❌ Error: ${data.error || "Failed to start quiz"}</div>`;
       return;
     }
     status.innerHTML = "";
@@ -152,7 +161,14 @@ async function handleFileUpload(file, overwrite = true, createNewVersion = false
       body: formData
     });
 
-    const data = await res.json();
+    const textResponse = await res.text();
+    let data;
+    try {
+      data = JSON.parse(textResponse);
+    } catch (parseErr) {
+      statusBanner.innerHTML = `<div class="alert-banner danger">❌ Server Error: ${escapeHtml(textResponse.slice(0, 150))}</div>`;
+      return;
+    }
 
     if (res.status === 200 && data.status === "duplicate_prompt") {
       state.pendingDuplicateFile = file;
@@ -357,8 +373,9 @@ function renderCurrentQuestion() {
       <div class="options-grid">
         ${q.options.map((opt, i) => `
           <label class="option-label" id="opt-label-${i}" onclick="selectAnswerOption(${i}, '${escapeForJs(opt)}')">
+            <span class="option-badge">${['A', 'B', 'C', 'D'][i] || (i + 1)}</span>
             <input type="radio" name="practice_option" value="${escapeHtml(opt)}">
-            <span>${escapeHtml(opt)}</span>
+            <span style="flex:1;">${escapeHtml(opt)}</span>
           </label>
         `).join("")}
       </div>
@@ -391,6 +408,11 @@ function renderCurrentQuestion() {
         {left: '$', right: '$', display: false}
       ]
     });
+  }
+
+  // Refresh 3D card tilt & specular lighting physics
+  if (window.ThreeVisuals && window.ThreeVisuals.refresh3DTilt) {
+    window.ThreeVisuals.refresh3DTilt();
   }
 }
 
@@ -470,14 +492,25 @@ async function renderLoopSubmissionSummary() {
 
     const isMastered = result.is_mastered;
 
+    // Trigger dynamic 3D WebGL particle celebration or remediation pulse
+    if (isMastered) {
+      if (window.ThreeVisuals && window.ThreeVisuals.triggerMasteryExplosion) {
+        window.ThreeVisuals.triggerMasteryExplosion();
+      }
+    } else {
+      if (window.ThreeVisuals && window.ThreeVisuals.triggerRemediationPulse) {
+        window.ThreeVisuals.triggerRemediationPulse();
+      }
+    }
+
     container.innerHTML = `
       <div class="question-card">
-        <div style="text-align:center; margin-bottom:1.5rem;">
-          <h2 style="font-size:1.75rem; color:${isMastered ? 'var(--success-green)' : 'var(--warning-amber)'}; margin-bottom:0.5rem;">
+        <div class="${isMastered ? 'mastery-indicator-box' : 'remediation-indicator-box'}">
+          <h2 style="font-size:1.9rem; color:${isMastered ? 'var(--success-green)' : 'var(--warning-amber)'}; margin-bottom:0.5rem; font-weight:800;">
             ${isMastered ? '🎉 100% Mastery Achieved!' : '⚠️ Remediation Required (Mastery Below 100%)'}
           </h2>
-          <div class="metric-big">${result.score}%</div>
-          <p class="metric-caption">
+          <div class="metric-big" style="font-size:3.5rem;">${result.score}%</div>
+          <p class="metric-caption" style="max-width:650px; margin:0.5rem auto 0 auto;">
             ${isMastered ?
               'All concepts verified with High/Medium confidence. Next sequential module is now unlocked!' :
               'Advancement requires a strict 100% score on the current loop iteration (BR-2). Review the verified feedback below and begin a newly framed question loop.'}
@@ -487,7 +520,7 @@ async function renderLoopSubmissionSummary() {
         <h3 style="margin-bottom:1rem; border-bottom:1px solid var(--border-color); padding-bottom:0.5rem;">Verified Answer Analysis & Grounding:</h3>
         <div style="display:flex; flex-direction:column; gap:1rem; margin-bottom:2rem;">
           ${result.evaluations.map((ev, i) => `
-            <div style="background:var(--bg-secondary); padding:1rem; border-radius:var(--radius-md); border-left:4px solid ${ev.is_correct && !ev.is_unverified ? 'var(--success-green)' : (ev.is_unverified ? 'var(--warning-amber)' : 'var(--danger-red)')};">
+            <div style="background:var(--bg-secondary); padding:1.1rem; border-radius:var(--radius-md); border-left:4px solid ${ev.is_correct && !ev.is_unverified ? 'var(--success-green)' : (ev.is_unverified ? 'var(--warning-amber)' : 'var(--danger-red)')};">
               <div><strong>Q${i+1}: ${escapeHtml(ev.question)}</strong></div>
               <div style="margin:0.25rem 0; font-size:0.9rem;">Your Answer: <em>${escapeHtml(ev.selected)}</em> (${ev.confidence} Confidence)</div>
               <div style="color:var(--text-muted); font-size:0.85rem;">${escapeHtml(ev.feedback)}</div>
@@ -509,6 +542,10 @@ async function renderLoopSubmissionSummary() {
       window.renderMathInElement(container, {
         delimiters: [{left: '$$', right: '$$', display: true}, {left: '$', right: '$', display: false}]
       });
+    }
+
+    if (window.ThreeVisuals && window.ThreeVisuals.refresh3DTilt) {
+      window.ThreeVisuals.refresh3DTilt();
     }
   } catch (err) {
     container.innerHTML = `<div class="alert-banner danger">❌ Evaluation Error: ${err.message}</div>`;
@@ -684,6 +721,10 @@ async function loadDashboardAnalytics() {
         </div>
       </div>
     `;
+
+    if (window.ThreeVisuals && window.ThreeVisuals.refresh3DTilt) {
+      window.ThreeVisuals.refresh3DTilt();
+    }
   } catch (err) {
     container.innerHTML = `<p class="metric-caption text-danger">Failed to load analytics: ${err.message}</p>`;
   }

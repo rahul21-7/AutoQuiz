@@ -14,74 +14,77 @@ def get_current_user_id() -> str:
 @quiz_bp.route("/quick-start", methods=["POST"])
 def quick_start():
     """
-    1-Click Quick Start: Ingests PDF/TXT/MD, extracts concepts, and immediately
+    1-Click Quick Start: Ingests PDF/TXT/MD/PPTX, extracts concepts, and immediately
     generates the active quiz loop for seamless demo experience.
     """
     user_id = get_current_user_id()
     doc_id = None
     topic_name = "Core Study Material"
     
-    # 1. Check if uploading a file
-    if "file" in request.files:
-        file = request.files["file"]
-        if file and file.filename:
-            file_bytes = file.read()
-            res = DocumentService.ingest_document(
-                user_id=user_id,
-                filename=file.filename,
-                file_bytes=file_bytes,
-                overwrite=True
-            )
-            doc_id = res.get("doc_id")
-    
-    # 2. Check if loading pre-bundled sample
-    sample_type = request.form.get("sample") or (request.get_json() or {}).get("sample")
-    if not doc_id and sample_type:
-        base_sample_dir = Path(__file__).resolve().parent.parent.parent / "sample_data"
-        if sample_type == "ml":
-            sample_file = base_sample_dir / "ml_overfitting.pdf"
-            fname = "ml_overfitting.pdf"
-        elif sample_type == "code":
-            sample_file = base_sample_dir / "python_algorithms.md"
-            fname = "python_algorithms.md"
-        else:
-            sample_file = base_sample_dir / "business_essentials.txt"
-            fname = "business_essentials.txt"
-            
-        if sample_file.exists():
-            with open(sample_file, "rb") as f:
-                content = f.read()
-            res = DocumentService.ingest_document(
-                user_id=user_id,
-                filename=fname,
-                file_bytes=content,
-                overwrite=True
-            )
-            doc_id = res.get("doc_id")
-
-    # 3. If no doc_id yet, find the most recent document for this user
-    if not doc_id:
-        conn = get_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT doc_id, title FROM documents WHERE user_id = ? ORDER BY created_at DESC LIMIT 1", (user_id,))
-        recent = cursor.fetchone()
-        conn.close()
-        if recent:
-            doc_id = recent["doc_id"]
-        else:
-            return jsonify({"error": "No document provided. Please upload a PDF or select a sample."}), 400
-
-    # 4. Find the first topic for this document
-    topics = RemediationEngine.get_user_topics(user_id=user_id, doc_id=doc_id)
-    if not topics:
-        return jsonify({"error": "No topics could be extracted from this document."}), 400
-
-    first_topic = topics[0]
-    topic_id = first_topic["topic_id"]
-    topic_name = first_topic["name"]
-
-    # 5. Start active quiz session
     try:
+        # 1. Check if uploading a file
+        if "file" in request.files:
+            file = request.files["file"]
+            if file and file.filename:
+                file_bytes = file.read()
+                res = DocumentService.ingest_document(
+                    user_id=user_id,
+                    filename=file.filename,
+                    file_bytes=file_bytes,
+                    overwrite=True
+                )
+                if res.get("status") == "duplicate_prompt":
+                    return jsonify(res), 200
+                doc_id = res.get("doc_id")
+        
+        # 2. Check if loading pre-bundled sample
+        json_data = request.get_json(silent=True) or {}
+        sample_type = request.form.get("sample") or json_data.get("sample")
+        if not doc_id and sample_type:
+            base_sample_dir = Path(__file__).resolve().parent.parent.parent / "sample_data"
+            if sample_type == "ml":
+                sample_file = base_sample_dir / "ml_overfitting.pdf"
+                fname = "ml_overfitting.pdf"
+            elif sample_type == "code":
+                sample_file = base_sample_dir / "python_algorithms.md"
+                fname = "python_algorithms.md"
+            else:
+                sample_file = base_sample_dir / "business_essentials.txt"
+                fname = "business_essentials.txt"
+                
+            if sample_file.exists():
+                with open(sample_file, "rb") as f:
+                    content = f.read()
+                res = DocumentService.ingest_document(
+                    user_id=user_id,
+                    filename=fname,
+                    file_bytes=content,
+                    overwrite=True
+                )
+                doc_id = res.get("doc_id")
+
+        # 3. If no doc_id yet, find the most recent document for this user
+        if not doc_id:
+            conn = get_connection()
+            cursor = conn.cursor()
+            cursor.execute("SELECT doc_id, title FROM documents WHERE user_id = ? ORDER BY created_at DESC LIMIT 1", (user_id,))
+            recent = cursor.fetchone()
+            conn.close()
+            if recent:
+                doc_id = recent["doc_id"]
+            else:
+                return jsonify({"error": "No document provided. Please upload a PDF or select a sample."}), 400
+
+        # 4. Find the first topic for this document
+        topics = RemediationEngine.get_user_topics(user_id=user_id, doc_id=doc_id)
+        if not topics:
+            return jsonify({"error": "No topics could be extracted from this document."}), 400
+
+        first_topic = topics[0]
+        topic_id = first_topic["topic_id"]
+        topic_name = first_topic["name"]
+
+        # 5. Start active quiz session
         session_info = RemediationEngine.start_or_resume_session(
             user_id=user_id,
             topic_id=topic_id,
@@ -90,6 +93,13 @@ def quick_start():
         session_info["topic_name"] = topic_name
         session_info["doc_id"] = doc_id
         return jsonify(session_info), 200
+
+    except ValueError as ve:
+        return jsonify({"error": str(ve)}), 400
+    except PermissionError as pe:
+        return jsonify({"error": str(pe)}), 403
+    except OSError as oe:
+        return jsonify({"error": str(oe)}), 500
     except Exception as e:
         return jsonify({"error": f"Failed to start quiz: {str(e)}"}), 500
 

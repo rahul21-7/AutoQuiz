@@ -34,6 +34,20 @@ def create_app(test_config=None):
             "version": "1.0 Approved"
         }), 200
 
+    @app.errorhandler(400)
+    def bad_request(e):
+        return jsonify({"error": str(e.description if hasattr(e, "description") else e)}), 400
+
+    @app.errorhandler(404)
+    def not_found(e):
+        return jsonify({"error": "Resource not found"}), 404
+
+    @app.errorhandler(Exception)
+    def handle_global_exception(e):
+        code = getattr(e, "code", 500)
+        desc = getattr(e, "description", str(e))
+        return jsonify({"error": desc}), code
+
     # Frontend Single-Page App delivery
     @app.route("/", methods=["GET"])
     def index():
