@@ -272,6 +272,20 @@ html, body {
   padding: 1.25rem;
 }
 
+.welcome-header-flex {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 0.75rem;
+}
+
+#hero-3d-prism-canvas {
+  width: 130px;
+  height: 130px;
+  flex-shrink: 0;
+}
+
 .gemini-welcome h1 {
   font-size: 1.4rem;
   font-weight: 600;
@@ -359,11 +373,21 @@ html, body {
   gap: 0.65rem;
   font-size: 0.9rem;
   font-family: inherit;
+  transform: translateZ(0);
+  box-shadow: 0 2px 0 #111111;
+  transition: transform 0.06s ease, box-shadow 0.06s ease, background-color 0.06s ease, border-color 0.06s ease;
 }
 
 .quiz-option-btn:hover {
   background-color: var(--bg-hover);
   border-color: var(--border-focus);
+  transform: translateY(-1px);
+  box-shadow: 0 3px 0 #111111;
+}
+
+.quiz-option-btn:active {
+  transform: translateY(1px);
+  box-shadow: 0 1px 0 #111111;
 }
 
 .quiz-option-btn.selected {
@@ -371,6 +395,8 @@ html, body {
   background-color: var(--accent-blue-bg);
   color: #ffffff;
   font-weight: 500;
+  transform: translateY(-1px);
+  box-shadow: 0 3px 0 var(--accent-blue);
 }
 
 .opt-letter {
@@ -419,11 +445,18 @@ html, body {
   cursor: pointer;
   text-align: center;
   font-family: inherit;
+  box-shadow: 0 2px 0 #111111;
+  transition: transform 0.06s ease, box-shadow 0.06s ease, background-color 0.06s ease;
 }
 
 .btn-conf:hover {
   background-color: var(--bg-hover);
   color: #ffffff;
+}
+
+.btn-conf:active, .btn-conf.selected {
+  transform: translateY(1px);
+  box-shadow: 0 1px 0 #111111;
 }
 
 .btn-conf.high.selected {
@@ -461,10 +494,19 @@ html, body {
   font-weight: 600;
   cursor: pointer;
   font-family: inherit;
+  box-shadow: 0 2px 0 #004c99;
+  transition: transform 0.06s ease, box-shadow 0.06s ease, background-color 0.06s ease;
 }
 
 .btn-submit-quiz:hover {
   background-color: var(--accent-blue-hover);
+  transform: translateY(-1px);
+  box-shadow: 0 3px 0 #004c99;
+}
+
+.btn-submit-quiz:active {
+  transform: translateY(1px);
+  box-shadow: 0 1px 0 #004c99;
 }
 
 /* Evaluation Feedback Box */

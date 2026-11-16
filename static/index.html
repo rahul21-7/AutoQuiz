@@ -12,6 +12,10 @@
 
   <!-- Standard Clean Stylesheet (Zero Rounded Corners, No Logo) -->
   <link rel="stylesheet" href="/static/css/styles.css">
+
+  <!-- Local 3D Graphics Engine -->
+  <script src="/static/js/three.min.js"></script>
+  <script src="/static/js/three_elements.js"></script>
 </head>
 <body>
 
@@ -78,8 +82,13 @@
 
           <!-- Welcome State -->
           <div class="gemini-welcome" id="gemini-welcome-block">
-            <h1 style="font-size:1.3rem;">Welcome, <span id="welcome-username">Rahul</span></h1>
-            <p>Upload lecture slides or notes (PDF, PPTX, Markdown, or TXT) to generate an adaptive quiz loop until you attain 100% mastery.</p>
+            <div class="welcome-header-flex">
+              <div>
+                <h1 style="font-size:1.3rem;">Welcome, <span id="welcome-username">Rahul</span></h1>
+                <p style="margin-bottom:0;">Upload lecture slides or notes (PDF, PPTX, Markdown, or TXT) to generate an adaptive quiz loop until you attain 100% mastery.</p>
+              </div>
+              <div id="hero-3d-prism-canvas" title="3D Geometric Knowledge Node"></div>
+            </div>
 
             <div class="suggestion-grid">
               <div class="suggestion-card" onclick="quickStartSample('ml')">

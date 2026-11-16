@@ -28,9 +28,46 @@ const state = {
 // --- Initialization ---
 document.addEventListener("DOMContentLoaded", () => {
   setupNavigation();
+  setupQuizKeyShortcuts();
   checkAuthAndLoad();
   loadRecentMaterials();
 });
+
+function setupQuizKeyShortcuts() {
+  window.addEventListener("keydown", (e) => {
+    const activeBox = document.getElementById("active-quiz-box");
+    if (!activeBox) return;
+    const activeEl = document.activeElement;
+    if (activeEl && (activeEl.tagName === "INPUT" || activeEl.tagName === "TEXTAREA")) return;
+
+    const key = e.key.toLowerCase();
+    if (key === "a" || key === "1") {
+      const btn = activeBox.querySelector("#q-opt-0");
+      if (btn) btn.click();
+    } else if (key === "b" || key === "2") {
+      const btn = activeBox.querySelector("#q-opt-1");
+      if (btn) btn.click();
+    } else if (key === "c" || key === "3") {
+      const btn = activeBox.querySelector("#q-opt-2");
+      if (btn) btn.click();
+    } else if (key === "d" || key === "4") {
+      const btn = activeBox.querySelector("#q-opt-3");
+      if (btn) btn.click();
+    } else if (key === "h") {
+      const btn = activeBox.querySelector(".btn-conf.high");
+      if (btn) btn.click();
+    } else if (key === "m") {
+      const btn = activeBox.querySelector(".btn-conf.medium");
+      if (btn) btn.click();
+    } else if (key === "l") {
+      const btn = activeBox.querySelector(".btn-conf.low");
+      if (btn) btn.click();
+    } else if (e.key === "Enter") {
+      const submitBtn = activeBox.querySelector("#btn-next-q");
+      if (submitBtn) submitBtn.click();
+    }
+  });
+}
 
 function setupNavigation() {
   document.querySelectorAll(".sidebar-link").forEach(link => {
@@ -117,6 +154,10 @@ function startNewChat() {
 
   const statusEl = document.getElementById("chat-header-status");
   if (statusEl) statusEl.innerHTML = `<span class="status-chip">Ready</span>`;
+
+  if (window.ThreeElements && window.ThreeElements.init) {
+    setTimeout(() => window.ThreeElements.init(), 50);
+  }
 }
 
 // --- Chat Message Appender ---
@@ -189,7 +230,7 @@ function handleSendClicked() {
   // If user typed something when no session is active, guide them
   if (!state.activeSession) {
     appendMessage("ai", `
-      Please attach your course notes using the paperclip 📎 button or click one of the suggested sample topics above to generate your adaptive quiz loop.
+      Please attach your course notes using the 'Attach File' button or select one of the suggested sample topics above to generate your adaptive quiz loop.
     `);
   }
 }
@@ -202,8 +243,8 @@ async function quickStartSample(sampleType) {
   };
   const title = sampleNames[sampleType] || sampleType;
 
-  appendMessage("user", `⚡ Practice sample topic: <strong>${escapeHtml(title)}</strong>`);
-  const loadingMsg = appendMessage("ai", `⏳ Grounding course material from <strong>${escapeHtml(title)}</strong> and generating initial question loop...`);
+  appendMessage("user", `Practice sample topic: <strong>${escapeHtml(title)}</strong>`);
+  const loadingMsg = appendMessage("ai", `Grounding course material from <strong>${escapeHtml(title)}</strong> and generating initial question loop...`);
 
   try {
     const res = await fetch("/api/quiz/quick-start", {
@@ -220,7 +261,7 @@ async function quickStartSample(sampleType) {
     try { data = JSON.parse(textRes); } catch (_) { throw new Error(textRes); }
 
     if (!res.ok) {
-      loadingMsg.querySelector(".msg-content").innerHTML = `❌ Error: ${data.error || "Failed to load sample"}`;
+      loadingMsg.querySelector(".msg-content").innerHTML = `Error: ${data.error || "Failed to load sample"}`;
       return;
     }
 
@@ -228,13 +269,13 @@ async function quickStartSample(sampleType) {
     initQuizSession(data);
     loadRecentMaterials();
   } catch (err) {
-    loadingMsg.querySelector(".msg-content").innerHTML = `❌ Connection Error: ${escapeHtml(err.message)}`;
+    loadingMsg.querySelector(".msg-content").innerHTML = `Connection Error: ${escapeHtml(err.message)}`;
   }
 }
 
 async function uploadAndStartQuiz(file) {
-  appendMessage("user", `📎 Uploaded study material: <strong>${escapeHtml(file.name)}</strong>`);
-  const loadingMsg = appendMessage("ai", `⏳ Parsing <strong>${escapeHtml(file.name)}</strong>, extracting AST code and LaTeX formulas, and preparing your quiz...`);
+  appendMessage("user", `Uploaded study material: <strong>${escapeHtml(file.name)}</strong>`);
+  const loadingMsg = appendMessage("ai", `Parsing <strong>${escapeHtml(file.name)}</strong>, extracting AST code and LaTeX formulas, and preparing your quiz...`);
 
   const formData = new FormData();
   formData.append("file", file);
@@ -259,7 +300,7 @@ async function uploadAndStartQuiz(file) {
     }
 
     if (!res.ok) {
-      loadingMsg.querySelector(".msg-content").innerHTML = `❌ Ingestion Error: ${escapeHtml(data.error || "Upload failed.")}`;
+      loadingMsg.querySelector(".msg-content").innerHTML = `Ingestion Error: ${escapeHtml(data.error || "Upload failed.")}`;
       return;
     }
 
@@ -267,7 +308,7 @@ async function uploadAndStartQuiz(file) {
     initQuizSession(data);
     loadRecentMaterials();
   } catch (err) {
-    loadingMsg.querySelector(".msg-content").innerHTML = `❌ Ingestion Error: ${escapeHtml(err.message)}`;
+    loadingMsg.querySelector(".msg-content").innerHTML = `Ingestion Error: ${escapeHtml(err.message)}`;
   }
 }
 
@@ -349,28 +390,32 @@ function renderCurrentQuestionInChat() {
 
 function selectChatOption(idx, answerValue) {
   state.currentSelection = answerValue;
-  document.querySelectorAll(".quiz-option-btn").forEach((btn, i) => {
+  const activeBox = document.getElementById("active-quiz-box");
+  if (!activeBox) return;
+  activeBox.querySelectorAll(".quiz-option-btn").forEach((btn, i) => {
     btn.classList.toggle("selected", i === idx);
   });
 }
 
 function selectChatConfidence(level, element) {
   state.currentConfidence = level;
-  document.querySelectorAll(".btn-conf").forEach(b => b.classList.remove("selected"));
+  const activeBox = document.getElementById("active-quiz-box");
+  if (!activeBox) return;
+  activeBox.querySelectorAll(".btn-conf").forEach(b => b.classList.remove("selected"));
   element.classList.add("selected");
 }
 
-async function submitChatQuestionAnswer() {
+function submitChatQuestionAnswer() {
   if (!state.currentSelection) {
     alert("Please select an answer choice.");
     return;
   }
   if (!state.currentConfidence) {
-    alert("⚠️ Confidence tag required: Please select High, Medium, or Low confidence before proceeding.");
+    alert("Confidence tag required: Please select High, Medium, or Low confidence before proceeding.");
     return;
   }
 
-  // Freeze the current active question box
+  // Freeze the current active question box immediately
   const activeBox = document.getElementById("active-quiz-box");
   if (activeBox) {
     activeBox.id = ""; // remove id so next question box becomes active
@@ -379,31 +424,30 @@ async function submitChatQuestionAnswer() {
 
   const selectedAnswer = state.currentSelection;
   const conf = state.currentConfidence;
+  const qIdx = state.currentQuestionIndex;
+  const session = state.activeSession;
 
-  // Append user's choice message in the chat
+  // Append user's choice message in the chat immediately (0ms perceived latency)
   appendMessage("user", `Selected: <strong>${escapeHtml(selectedAnswer)}</strong> [${conf} Confidence]`);
 
-  // Save progress via API
-  const session = state.activeSession;
-  try {
-    await fetch(`/api/quiz/session/${session.session_id}/progress`, {
+  // Asynchronous non-blocking background progress save (PERF: student does not wait for HTTP roundtrip)
+  if (session && session.session_id) {
+    fetch(`/api/quiz/session/${session.session_id}/progress`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         "X-User-ID": state.currentUser.userId
       },
       body: JSON.stringify({
-        question_index: state.currentQuestionIndex,
+        question_index: qIdx,
         selected_answer: selectedAnswer,
         confidence: conf
       })
-    });
-  } catch (e) {
-    console.error("Progress save failed:", e);
+    }).catch(e => console.warn("Background progress sync:", e));
   }
 
   state.submittedAnswers.push({
-    question_index: state.currentQuestionIndex,
+    question_index: qIdx,
     selected_answer: selectedAnswer,
     confidence: conf
   });
@@ -413,7 +457,7 @@ async function submitChatQuestionAnswer() {
 }
 
 async function submitFullLoop() {
-  const evalLoading = appendMessage("ai", "⏳ Evaluating your loop responses against source notes and computing mastery score...");
+  const evalLoading = appendMessage("ai", "Evaluating your loop responses against source notes and computing mastery score...");
 
   const session = state.activeSession;
   try {
@@ -430,7 +474,7 @@ async function submitFullLoop() {
     evalLoading.remove();
 
     if (!res.ok) {
-      appendMessage("ai", `❌ Evaluation Error: ${result.error}`);
+      appendMessage("ai", `Evaluation Error: ${result.error}`);
       return;
     }
 
@@ -442,26 +486,38 @@ async function submitFullLoop() {
         : `<span class="status-chip remediation">Remediation Required (${result.score}%)</span>`;
     }
 
+    const trophyHtml = isMastered
+      ? `<div style="display:flex; align-items:center; gap:1.25rem; margin:0.75rem 0;">
+           <div id="mastery-3d-stage" style="width:100px; height:100px; flex-shrink:0;"></div>
+           <div>
+             <div style="font-weight:700; color:var(--success-green); font-size:1rem;">100% Mastery Verified</div>
+             <div style="font-size:0.82rem; color:var(--text-muted); margin-top:0.2rem;">All concepts verified with sufficient confidence. Next sequential module is unlocked.</div>
+           </div>
+         </div>`
+      : ``;
+
     const summaryHtml = `
       <div class="eval-box">
         <div class="eval-banner ${isMastered ? 'success' : 'warning'}">
-          <div style="font-size:1.15rem; font-weight:600; margin-bottom:0.25rem;">
-            ${isMastered ? '🎉 100% Mastery Achieved!' : `⚠️ Loop Score: ${result.score}% (Remediation Required)`}
+          <div style="font-size:1.1rem; font-weight:700; margin-bottom:0.25rem;">
+            ${isMastered ? '100% Mastery Achieved' : `Loop Score: ${result.score}% (Remediation Required)`}
           </div>
           <p style="font-size:0.88rem; line-height:1.5;">
             ${isMastered
-              ? 'All concepts verified with High/Medium confidence. Next sequential module is now unlocked!'
-              : 'Advancement requires a strict 100% score on the current loop iteration (BR-2). Review the verified feedback below and begin your next targeted question loop.'}
+              ? 'All concepts verified with High/Medium confidence. Next sequential module is now unlocked.'
+              : 'Advancement requires a strict 100% score on the current loop iteration (BR-2). Review the feedback below and begin your next targeted question loop.'}
           </p>
         </div>
 
-        <div style="font-size:0.9rem; font-weight:600; margin-bottom:0.75rem;">Verified Concept Explanations:</div>
-        <div style="display:flex; flex-direction:column; gap:0.65rem; margin-bottom:1.25rem;">
+        ${trophyHtml}
+
+        <div style="font-size:0.88rem; font-weight:700; margin-bottom:0.75rem;">Verified Concept Explanations:</div>
+        <div style="display:flex; flex-direction:column; gap:0.6rem; margin-bottom:1.25rem;">
           ${result.evaluations.map((ev, i) => `
-            <div style="background:#18191a; padding:0.85rem 1rem; border-radius:4px; border-left:3px solid ${ev.is_correct && !ev.is_unverified ? 'var(--success-green)' : (ev.is_unverified ? 'var(--warning-amber)' : 'var(--danger-red)')};">
-              <div style="font-weight:500; font-size:0.9rem; margin-bottom:0.25rem;">Q${i+1}: ${escapeHtml(ev.question)}</div>
+            <div style="background:#18191a; padding:0.75rem 0.95rem; border-radius:2px; border-left:3px solid ${ev.is_correct && !ev.is_unverified ? 'var(--success-green)' : (ev.is_unverified ? 'var(--warning-amber)' : 'var(--danger-red)')};">
+              <div style="font-weight:600; font-size:0.88rem; margin-bottom:0.2rem;">Q${i+1}: ${escapeHtml(ev.question)}</div>
               <div style="font-size:0.82rem; color:var(--text-dim);">Your answer: <span style="color:var(--text-main); font-weight:500;">${escapeHtml(ev.selected)}</span> (${ev.confidence} Confidence)</div>
-              <div style="font-size:0.82rem; color:var(--text-muted); margin-top:0.25rem; line-height:1.4;">${escapeHtml(ev.feedback)}</div>
+              <div style="font-size:0.82rem; color:var(--text-muted); margin-top:0.2rem; line-height:1.4;">${escapeHtml(ev.feedback)}</div>
             </div>
           `).join("")}
         </div>
@@ -469,21 +525,28 @@ async function submitFullLoop() {
         <div style="display:flex; justify-content:space-between; align-items:center;">
           <button class="btn-secondary" onclick="startNewChat()">Start Different Topic</button>
           ${isMastered
-            ? `<button class="btn-submit-quiz" onclick="switchView('dashboard')">View Updated Analytics 📊</button>`
-            : `<button class="btn-submit-quiz" onclick="launchQuizSession('${result.topic_id}')">Begin New Remediation Loop 🔄</button>`
+            ? `<button class="btn-submit-quiz" onclick="switchView('dashboard')">View Updated Analytics</button>`
+            : `<button class="btn-submit-quiz" onclick="launchQuizSession('${result.topic_id}')">Begin New Remediation Loop</button>`
           }
         </div>
       </div>
     `;
 
     appendMessage("ai", summaryHtml);
+
+    // Mount 3D Mastery Trophy if 100% mastery achieved
+    if (isMastered && window.ThreeElements && window.ThreeElements.renderMasteryTrophy) {
+      setTimeout(() => {
+        window.ThreeElements.renderMasteryTrophy("mastery-3d-stage");
+      }, 50);
+    }
   } catch (err) {
-    evalLoading.querySelector(".msg-content").innerHTML = `❌ Evaluation Error: ${escapeHtml(err.message)}`;
+    evalLoading.querySelector(".msg-content").innerHTML = `Evaluation Error: ${escapeHtml(err.message)}`;
   }
 }
 
 async function launchQuizSession(topicId) {
-  appendMessage("ai", `🔄 Preparing newly framed questions for your remediation loop...`);
+  appendMessage("ai", `Preparing newly framed questions for your remediation loop...`);
 
   try {
     const res = await fetch("/api/quiz/session/start", {
@@ -497,13 +560,13 @@ async function launchQuizSession(topicId) {
 
     const data = await res.json();
     if (!res.ok) {
-      appendMessage("ai", `❌ Cannot start session: ${data.error}`);
+      appendMessage("ai", `Cannot start session: ${data.error}`);
       return;
     }
 
     initQuizSession(data);
   } catch (e) {
-    appendMessage("ai", `❌ Session launch error: ${e.message}`);
+    appendMessage("ai", `Session launch error: ${e.message}`);
   }
 }
 
@@ -539,7 +602,6 @@ async function loadRecentMaterials() {
 
     list.innerHTML = docs.slice(0, 8).map(d => `
       <li class="sidebar-link" title="${escapeHtml(d.title)}" onclick="practiceRecentDoc('${d.doc_id}', '${escapeForJs(d.title)}')">
-        <span>📄</span>
         <span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHtml(d.title)}</span>
       </li>
     `).join("");
@@ -551,7 +613,7 @@ async function loadRecentMaterials() {
 async function practiceRecentDoc(docId, title) {
   switchView("chat");
   appendMessage("user", `Start practice on recent document: <strong>${escapeHtml(title)}</strong>`);
-  const loading = appendMessage("ai", `⏳ Fetching curriculum modules for <strong>${escapeHtml(title)}</strong>...`);
+  const loading = appendMessage("ai", `Fetching curriculum modules for <strong>${escapeHtml(title)}</strong>...`);
 
   try {
     const res = await fetch("/api/quiz/topics", {
@@ -570,7 +632,7 @@ async function practiceRecentDoc(docId, title) {
     const targetTopic = docTopics.find(t => t.is_unlocked) || docTopics[0];
     launchQuizSession(targetTopic.topic_id);
   } catch (e) {
-    loading.querySelector(".msg-content").innerHTML = `❌ Error: ${e.message}`;
+    loading.querySelector(".msg-content").innerHTML = `Error: ${e.message}`;
   }
 }
 
@@ -595,7 +657,7 @@ async function loadDashboardAnalytics() {
     if (data.welcome_state) {
       container.innerHTML = `
         <div class="panel-card">
-          <p style="font-weight:500;">👋 ${data.message}</p>
+          <p style="font-weight:500;">${data.message}</p>
           <button class="btn-submit-quiz" style="margin-top:1rem;" onclick="startNewChat()">Start Your First Practice Session</button>
         </div>
       `;
@@ -747,13 +809,13 @@ function resolveDuplicate(choice) {
   .then(res => res.json())
   .then(data => {
     if (data.error) {
-      appendMessage("ai", `❌ Error: ${data.error}`);
+      appendMessage("ai", `Error: ${data.error}`);
     } else {
       initQuizSession(data);
     }
   })
   .catch(err => {
-    appendMessage("ai", `❌ Ingestion Error: ${err.message}`);
+    appendMessage("ai", `Ingestion Error: ${err.message}`);
   });
 }
 
