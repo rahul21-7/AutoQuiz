@@ -9,13 +9,80 @@
 
 ---
 
-## 📌 Executive Summary & Architecture Overview
+## Quick Start: How to Run
 
-**AutoQuiz** is an autonomous, Retrieval-Augmented Generation (RAG) powered quizzing web application engineered to evaluate academic exam readiness. The platform ingests user-uploaded course documents (lecture slides, PDFs, Markdown notes, LaTeX equations, and source code), vectorizes text locally, and dynamically generates targeted, grounded mock quizzes.
+### Step 1. Launch the Application Server
+Run the unified launcher using the pre-configured Python virtual environment:
+
+On Windows (PowerShell):
+```powershell
+.\.venv\Scripts\python.exe run.py --port 8000
+```
+
+On Windows (Command Prompt):
+```cmd
+.\.venv\Scripts\python.exe run.py --port 8000
+```
+
+Alternatively, activate the virtual environment first:
+```powershell
+.\.venv\Scripts\Activate.ps1
+python run.py --port 8000
+```
+
+### Step 2. Open in Your Browser
+Navigate to:
+```
+http://localhost:8000
+```
+
+### Step 3. Using the Web Application
+1. **Upload Study Material**: Click **Attach File** or drag & drop lecture notes or presentation slides (`.pdf`, `.pptx`, `.md`, or `.txt`), e.g., `Maximum Subarray Sum Problem.pptx` or sample materials from `sample_data/`.
+2. **Interactive Question Loop**: AutoQuiz extracts key concepts, mathematical formulas (LaTeX), and code blocks, generating a grounded 3-to-5 question quiz loop.
+3. **Keyboard & Click Input**:
+   - Select answers with `1`-`4` or `A`-`D` (or click the options).
+   - Tag mandatory confidence: `H` (High), `M` (Medium), `L` (Low).
+   - Press `Enter` to submit each question instantly.
+4. **Adaptive Remediation**:
+   - Scoring **100%** with High/Medium confidence verifies mastery and displays the 3D Mastery Trophy.
+   - Any incorrect answers or low-confidence guesses trigger a targeted remediation loop with brand-new grounded questions (BR-2, BR-3).
+5. **Session Continuity & Progress**:
+   - View and resume previous chat sessions at any time from the left sidebar (**Recent Practice Chats**).
+   - Review your weakness heatmap, first-attempt vs looped pass rates, and Ebbinghaus retention decay alerts in the **Progress & Heatmap** view.
+
+---
+
+## Running the Automated Test Suite (TC-01 through TC-77)
+
+The repository includes an automated test suite covering all 77 software test cases specified in the IEEE 830-1998 SRS report.
+
+To execute the test suite:
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests/test_suite_tc01_tc77.py
+```
+or via the launcher:
+```powershell
+.\.venv\Scripts\python.exe run.py --test
+```
+
+### Test Suite Highlights:
+* **Security & Isolation (TC-01 to TC-06)**: Salted PBKDF2 hashing, login controls, student data isolation, and admin authorization.
+* **Document Ingestion (TC-07 to TC-25)**: Multi-format parsing (`.pdf`, `.pptx`, `.txt`, `.md`), executable header rejection, duplicate versioning/overwrite, LaTeX and AST code preservation.
+* **Question Synthesis & RAG (TC-26 to TC-34)**: Grounded question generation, zero cross-loop repetition (BR-3), JSON formatting retry, and insufficient context handling.
+* **Remediation & Confidence Guard (TC-35 to TC-54)**: Strict 100% threshold, low-confidence penalty, unverified concept re-testing, and session state recovery.
+* **Spaced Repetition & Decay (TC-55 to TC-62, TC-68)**: Ebbinghaus forgetting curve, dynamic stability intervals, micro-verification loops, and decay alerts.
+* **Analytics & Performance (TC-63 to TC-67)**: Sub-second dashboard rendering (PERF-3), first-attempt vs remediated breakdown (BR-4), and weakness heatmap reactivity.
+* **Admin Portal & API (TC-70 to TC-77)**: Three-click workflow, WCAG AA compliance, taxonomy CRUD, vector collection wiping, and student history resets.
+
+---
+
+## Executive Summary & Architecture Overview
+
+AutoQuiz is an autonomous, Retrieval-Augmented Generation (RAG) powered quizzing web application engineered to evaluate academic exam readiness. The platform ingests user-uploaded course documents (lecture slides, PDFs, Markdown notes, LaTeX equations, and source code), vectorizes text locally, and dynamically generates targeted, grounded mock quizzes.
 
 ### Core Architectural Features:
 1. **Local RAG Vector Ingestion (BR-1)**:
-   - Ingests PDF, TXT, and Markdown (`.md`) files locally with zero network leakage of sensitive student documents.
+   - Ingests PDF, PPTX, TXT, and Markdown (`.md`) files locally with zero network leakage of sensitive student documents.
    - Detects and rejects renamed executables, encrypted PDFs, and scanned image-only files.
    - Identifies duplicate titles with prompt for **Overwrite** or **Versioning** (`v2`, `v3`).
 2. **Multi-Modal AST & LaTeX Math Parsing (REQ_02, UC-6)**:
@@ -42,75 +109,19 @@
 
 ---
 
-## 🚀 Virtual Environment Setup & Installation
+## User Accounts and Authentication
 
-This project is configured and runs cleanly in a Python virtual environment (`.venv`).
+The platform provides role-based student and instructor accounts for testing data isolation:
 
-### 1. Activate the Virtual Environment
-On Windows (PowerShell):
-```powershell
-.\.venv\Scripts\Activate.ps1
-```
-Or on Windows (Command Prompt):
-```cmd
-.\.venv\Scripts\activate.bat
-```
-
-### 2. Verify Installed Dependencies
-Dependencies (`flask`, `pypdf`, `pytest`, `pydantic`) are pre-installed in `.venv`:
-```powershell
-.\.venv\Scripts\pip.exe list
-```
-
----
-
-## 🧪 Running the Automated Test Suite (TC-01 through TC-77)
-
-The project includes an exhaustive automated test suite covering **all 77 test cases (TC-01 to TC-77)** defined in the Software Engineering Specification (Report pages 100-112).
-
-To run all 77 test cases inside the virtual environment:
-```powershell
-.\.venv\Scripts\python.exe run.py --test
-```
-or directly via pytest:
-```powershell
-.\.venv\Scripts\python.exe -m pytest tests/test_suite_tc01_tc77.py
-```
-
-### Test Coverage Highlights:
-- **Security & Data Isolation**: `TC-01` to `TC-06` (salted PBKDF2 hashes, login rejection, multi-student isolation, admin role guards).
-- **Ingestion & Integrity**: `TC-07` to `TC-25` (file formats, case-insensitive `.PDF`, integrity checking, duplicate overwrite/versioning, AST code indentation, LaTeX preservation).
-- **Question Generation & Zero Repetition**: `TC-26` to `TC-34` (3-5 MCQs, 4 options, source grounding, zero duplicate stems across loops, JSON retry).
-- **Remediation & Confidence Guard**: `TC-35` to `TC-54` (mandatory confidence selection, Low confidence penalty, 100% strict threshold, sequential unlocking, session recovery).
-- **Spaced Repetition Decay**: `TC-55` to `TC-62`, `TC-68` (Ebbinghaus curve, dynamic decay formula, 2-Q micro-verification, decay alerts).
-- **Analytics & Weakness Heatmap**: `TC-63` to `TC-67` (sub-second rendering, first-try vs looped breakdown, interactive heatmap, 0-attempt welcome state).
-- **UI & Accessibility**: `TC-70` to `TC-73` (3-click workflow, WCAG AA contrast >= 4.5:1, cross-browser compatibility, JSON APIs).
-- **Admin Management**: `TC-74` to `TC-77` (taxonomy CRUD, vector wiping, student history reset).
-- **Report Source Code**: Verification of `SmartExamQuizzer` and `instrumented_remediation_workflow` from pages 51-56 and 98-99.
-
----
-
-## 🌐 Running the Web Application
-
-To launch the AutoQuiz platform web server:
-```powershell
-.\.venv\Scripts\python.exe run.py --port 8000
-```
-Open your browser and navigate to:
-```
-http://localhost:8000
-```
-
-### Default Credentials:
-| Role | User ID | Password | Access Scope |
+| Role | User ID | Password | Scope |
 | :--- | :--- | :--- | :--- |
-| **Student A** | `24CSB1A12` | `secret_pass` | Upload notes, adaptive practice, confidence tagging, analytics heatmap |
-| **Student B** | `24CSB1A13` | `student_pass_13` | Isolated student account for cross-student testing |
+| **Student A** | `24CSB1A12` | `secret_pass` | Upload notes, adaptive practice loops, confidence tagging, analytics heatmap |
+| **Student B** | `24CSB1A13` | `student_pass_13` | Secondary student account for cross-student retrieval isolation testing |
 | **Admin / Instructor** | `admin` | `admin_pass_2026` | Syllabus taxonomy CRUD, vector collection wipe, student history reset |
 
 ---
 
-## 📊 Use Case Point (UCP) Estimation Summary
+## Use Case Point (UCP) Estimation Summary
 
 As documented on Report pages 75-82:
 - **Unadjusted Use Case Weight (UUCW)**: $185$ (8 Simple + 7 Average + 5 Complex use cases)
@@ -125,11 +136,10 @@ To run the standalone UCP calculator:
 ```powershell
 .\.venv\Scripts\python.exe run.py --ucp
 ```
-The exact C++ implementation from report pages 75-78 is also available in `tools/ucp_calculator.cpp`.
 
 ---
 
-## 📁 Repository Directory Structure
+## Repository Directory Structure
 
 ```
 AutoQuiz/
@@ -157,7 +167,9 @@ AutoQuiz/
 ├── static/
 │   ├── index.html                # Single-Page Application with KaTeX CDN and tab views
 │   ├── css/styles.css            # WCAG AA compliant high-contrast stylesheet (>= 4.5:1)
-│   └── js/app.js                 # Frontend application state, 3-click submission, reactive UI
+│   ├── js/app.js                 # Frontend application state, 3-click submission, reactive UI
+│   ├── js/three_elements.js      # 3D technical wireframe polyhedron and mastery trophy gem
+│   └── js/three.min.js           # Three.js 3D rendering library
 ├── sample_data/
 │   ├── ml_overfitting.pdf        # Valid sample PDF on ML overfitting & evaluation
 │   ├── python_algorithms.md      # Sample Markdown with 10-line Python code & LaTeX
@@ -179,7 +191,7 @@ AutoQuiz/
 
 ---
 
-## 📜 Business Rules & Non-Functional Verification Reference
+## Business Rules & Non-Functional Verification Reference
 
 | Rule ID | Name | Description | Verification Test |
 | :--- | :--- | :--- | :--- |

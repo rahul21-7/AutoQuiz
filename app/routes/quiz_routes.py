@@ -4,6 +4,7 @@ from app.services.spaced_repetition import SpacedRepetitionService
 from app.services.document_service import DocumentService
 from app.database import get_connection
 import os
+import json
 from pathlib import Path
 
 quiz_bp = Blueprint("quiz", __name__)
